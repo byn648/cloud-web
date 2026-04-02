@@ -1,14 +1,26 @@
 # cloud-web
 
-`cloud-web` is a minimal frontend scaffold modeled after `kube-nova-web`.
+`cloud-web` is a minimal frontend scaffold aligned with kube-nova-web module paths.
 
-## Tech stack
+## Layout
 
-- Vue 3
-- Vite
-- TypeScript
+```text
+cloud-web/src
+├── api/
+│   └── portal/
+│       └── auth.ts          # login API
+├── types/
+│   └── auth.ts              # auth DTO types
+├── utils/
+│   └── encoding.ts          # kube-nova-compatible password encoding
+└── views/
+    └── auth/
+        └── login/
+            ├── index.vue    # login page
+            └── style.css    # page styles
+```
 
-## Quick start
+## Run
 
 ```bash
 cd cloud-web
@@ -16,18 +28,6 @@ npm install
 npm run dev
 ```
 
-## Build
-
-```bash
-npm run build
-npm run preview
-```
-
-## API proxy (dev)
-
-The dev server proxies these prefixes to local backend ports:
+Dev proxy:
 
 - `/portal` -> `http://127.0.0.1:8810`
-- `/manager` -> `http://127.0.0.1:8811`
-- `/console` -> `http://127.0.0.1:8818`
-- `/workload` -> `http://127.0.0.1:8812`
