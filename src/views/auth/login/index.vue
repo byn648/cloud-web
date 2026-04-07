@@ -39,6 +39,10 @@
 import { reactive, ref } from "vue";
 import { loginApi } from "../../../api/portal/auth";
 
+const emit = defineEmits<{
+  "login-success": [];
+}>();
+
 const form = reactive({
   username: "super_admin",
   password: "admin123"
@@ -76,6 +80,8 @@ async function handleSubmit() {
       })
     );
 
+    // Notify app shell to switch to the workbench view.
+    emit("login-success");
     successMessage.value = `Welcome back, ${data.nickName}!`;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Login failed";
