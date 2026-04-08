@@ -85,7 +85,12 @@
 
     <template v-else>
       <section v-if="viewMode === 'card'" class="panoramic-card-list">
-        <article v-for="cluster in clusters" :key="cluster.id" class="pano-card">
+        <article
+          v-for="cluster in clusters"
+          :key="cluster.id"
+          class="pano-card clickable-card"
+          @click="openConsole(cluster.id)"
+        >
           
           <div class="pano-section info-sec">
             <div class="icon-badge">
@@ -124,9 +129,9 @@
             <div class="btn-group">
               <button class="m3-btn primary fill">进入控制台</button>
               <div class="sub-actions">
-                <button class="m3-btn text small">同步</button>
-                <button class="m3-btn text small">定价</button>
-                <button class="m3-btn text danger small">删除</button>
+                <button class="m3-btn text small" @click.stop>同步</button>
+                <button class="m3-btn text small" @click.stop>定价</button>
+                <button class="m3-btn text danger small" @click.stop>删除</button>
               </div>
             </div>
           </div>
@@ -141,10 +146,11 @@
           <div class="th">版本/状态</div>
           <div class="th">资源使用率 (CPU/Mem/Pod/Storage)</div>
           <div class="th">创建时间</div>
+          <div class="th">操作</div>
         </div>
         
         <div class="spaced-rows">
-          <div class="spaced-row" v-for="cluster in clusters" :key="`table-${cluster.id}`">
+          <div class="spaced-row clickable-row" v-for="cluster in clusters" :key="`table-${cluster.id}`" @click="openConsole(cluster.id)">
             <div class="td main-td">
               <strong>{{ cluster.name }}</strong>
             </div>
@@ -171,6 +177,9 @@
             </div>
             
             <div class="td date-td">{{ formatDate(cluster.createdAt) }}</div>
+            <div class="td action-td">
+              <button class="table-console-btn" @click.stop="openConsole(cluster.id)">进入控制台</button>
+            </div>
           </div>
         </div>
       </section>
@@ -181,6 +190,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { searchClusterApi, type Cluster } from "../../../api/manager/cluster";
+
+const emit = defineEmits<{
+  "open-console": [clusterId: number];
+}>();
 
 const clusters = ref<Cluster[]>([]);
 const loading = ref(false);
@@ -242,6 +255,11 @@ function metrics(cluster: Cluster) {
     { name: "Pod", value: percent(cluster.podUsage), level: level(cluster.podUsage) },
     { name: "存储", value: percent(cluster.storageUsage), level: level(cluster.storageUsage) }
   ];
+}
+
+function openConsole(clusterId: number): void {
+  if (!Number.isFinite(clusterId) || clusterId <= 0) return;
+  emit("open-console", clusterId);
 }
 
 async function loadClusters(): Promise<void> {
@@ -435,6 +453,7 @@ onMounted(async () => {
   box-shadow: 0 6px 16px rgba(0,0,0,0.06);
   transform: translateY(-2px);
 }
+.clickable-card { cursor: pointer; }
 
 .pano-section { display: flex; flex-direction: column; }
 
@@ -478,16 +497,16 @@ onMounted(async () => {
 
 .table-header-row {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 2fr 1fr;
+  grid-template-columns: 1.5fr 1fr 1fr 2fr 1fr 0.8fr;
   padding: 0 24px;
-  min-width: 900px;
+  min-width: 1020px;
 }
 .table-header-row .th { font-size: 13px; color: var(--m3-text-secondary); font-weight: 500; }
 
-.spaced-rows { display: flex; flex-direction: column; gap: 12px; min-width: 900px; }
+.spaced-rows { display: flex; flex-direction: column; gap: 12px; min-width: 1020px; }
 .spaced-row {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 2fr 1fr;
+  grid-template-columns: 1.5fr 1fr 1fr 2fr 1fr 0.8fr;
   background: var(--m3-surface);
   border-radius: 16px; 
   padding: 16px 24px;
@@ -499,6 +518,7 @@ onMounted(async () => {
 .spaced-row:hover {
   border-color: var(--m3-border); box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-1px);
 }
+.clickable-row { cursor: pointer; }
 
 .td { font-size: 14px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
 .main-td strong { font-size: 16px; color: var(--m3-text-main); font-weight: 500; }
@@ -518,6 +538,18 @@ onMounted(async () => {
 .micro-label { font-size: 11px; color: var(--m3-text-secondary); text-align: center; font-family: "Roboto Mono", monospace;}
 
 .date-td { color: var(--m3-text-secondary); font-size: 13px; }
+.action-td { align-items: flex-end; }
+.table-console-btn {
+  border: none;
+  border-radius: 10px;
+  background: var(--m3-tonal);
+  color: var(--m3-on-tonal);
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.table-console-btn:hover { filter: brightness(0.95); }
 
 /* 芯片通用 */
 .m3-chip { padding: 4px 12px; border-radius: 10px; font-size: 12px; font-weight: 500; background: var(--m3-surface-variant); color: var(--m3-text-secondary); display: inline-block; width: fit-content; }

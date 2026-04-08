@@ -37,11 +37,15 @@
 
 <script setup lang="ts">
 import { reactive, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { loginApi } from "../../../api/portal/auth";
+import { HOME_PATH, LOGIN_PATH } from "../../../router/paths";
 
 const emit = defineEmits<{
   "login-success": [];
 }>();
+const router = useRouter();
+const route = useRoute();
 
 const form = reactive({
   username: "super_admin",
@@ -80,9 +84,13 @@ async function handleSubmit() {
       })
     );
 
-    // Notify app shell to switch to the workbench view.
     emit("login-success");
     successMessage.value = `Welcome back, ${data.nickName}!`;
+    const redirect =
+      typeof route.query.redirect === "string" && route.query.redirect.trim()
+        ? route.query.redirect
+        : HOME_PATH;
+    await router.replace(redirect === LOGIN_PATH ? HOME_PATH : redirect);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Login failed";
   } finally {

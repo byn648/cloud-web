@@ -72,10 +72,22 @@
           
           <button class="icon-btn" title="通知"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
           
-          <div class="avatar-dropdown">
-            <div class="user-avatar">管</div>
-            <div class="dropdown-menu">
-              <button @click="emit('logout')">退出登录</button>
+          <div
+            ref="avatarDropdownRef"
+            class="avatar-dropdown"
+            :class="{ open: showUserMenu }"
+          >
+            <button
+              class="user-avatar"
+              type="button"
+              aria-label="用户菜单"
+              :aria-expanded="showUserMenu"
+              @click.stop="toggleUserMenu"
+            >
+              管
+            </button>
+            <div v-show="showUserMenu" class="dropdown-menu">
+              <button type="button" @click="handleLogoutClick">退出登录</button>
             </div>
           </div>
         </div>
@@ -94,7 +106,12 @@
       </nav>
 
       <div class="content-scroll-area">
-        <ClusterListPage v-if="showClusterListPage" />
+        <ClusterListPage v-if="showClusterListPage" @open-console="openClusterConsole" />
+        <ClusterManagementPage
+          v-else-if="showClusterManagementPage"
+          :cluster-id="consoleClusterId"
+          @back="backToClusterList"
+        />
         <NodeListPage v-else-if="showNodeListPage" />
         <DeviceCenterPage v-else-if="showDeviceCenterPage" />
         
@@ -138,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 // 组件引入保持不变
 import Banner from "./modules/banner.vue";
 import AnnualSales from "./modules/annual-sales.vue";
@@ -154,6 +171,7 @@ import TotalOrderVolume from "./modules/total-order-volume.vue";
 import TotalProducts from "./modules/total-products.vue";
 import TransactionList from "./modules/transaction-list.vue";
 import ClusterListPage from "../../cluster/cluster/index.vue";
+import ClusterManagementPage from "../../cluster/cluster/management/index.vue";
 import NodeListPage from "../../cluster/node/index.vue";
 import DeviceCenterPage from "../../device/center/index.vue";
 import { getDashboardOverviewApi } from "../../../api/portal/dashboard";
@@ -174,7 +192,11 @@ const dashboard = ref<DashboardOverviewResponse | null>(null);
 const clusters = ref<Cluster[]>([]);
 const selectedClusterId = ref<string>("all");
 const selectedClusterUuid = ref<string>("");
+const consoleClusterId = ref<number | null>(null);
+const inClusterManagement = ref(false);
 const ALL_CLUSTERS_VALUE = "all";
+const showUserMenu = ref(false);
+const avatarDropdownRef = ref<HTMLElement | null>(null);
 
 // --- 完美复现截图中各种莫兰迪彩色底色的 SVG 图标配置 ---
 const menuItems = ref<MenuGroup[]>([
@@ -188,7 +210,7 @@ const menuItems = ref<MenuGroup[]>([
     label: "集群管理", 
     iconBg: "#9bd6b6", // 截图中的浅绿色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#003820" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>`,
-    children: ["集群管理", "节点管理", "集群资源","站点监控"] 
+    children: ["集群管理", "节点管理", "集群资源", "站点监控"] 
   },
   { 
     label: "镜像仓库", 
@@ -245,13 +267,21 @@ const tabs = computed(() => {
   return current?.children ?? [];
 });
 
-const showClusterListPage = computed(() => activeMenu.value === "集群管理" && activeSubMenu.value === "集群管理");
+const showClusterListPage = computed(
+  () => activeMenu.value === "集群管理" && activeSubMenu.value === "集群管理" && !inClusterManagement.value
+);
+const showClusterManagementPage = computed(
+  () => activeMenu.value === "集群管理" && activeSubMenu.value === "集群管理" && inClusterManagement.value
+);
 const showNodeListPage = computed(() => activeMenu.value === "集群管理" && activeSubMenu.value === "节点管理");
 const showDeviceCenterPage = computed(() => activeMenu.value === "设备中心");
 
 const activeTab = computed({
   get() { return activeSubMenu.value; },
-  set(value: string) { activeSubMenu.value = value; }
+  set(value: string) {
+    activeSubMenu.value = value;
+    inClusterManagement.value = false;
+  }
 });
 
 function isExpanded(menuLabel: string): boolean {
@@ -259,6 +289,7 @@ function isExpanded(menuLabel: string): boolean {
 }
 
 function toggleMenu(menuLabel: string): void {
+  inClusterManagement.value = false;
   const willExpand = !isExpanded(menuLabel);
   expandedMenus.value = {}; // 收起其他
   if (willExpand) {
@@ -276,9 +307,45 @@ function selectSubMenu(menuLabel: string, subMenuLabel: string): void {
   activeMenu.value = menuLabel;
   activeSubMenu.value = subMenuLabel;
   expandedMenus.value = { [menuLabel]: true };
+  inClusterManagement.value = false;
+  consoleClusterId.value = null;
+}
+
+function openClusterConsole(clusterId: number): void {
+  if (!Number.isFinite(clusterId) || clusterId <= 0) return;
+  consoleClusterId.value = clusterId;
+  inClusterManagement.value = true;
+  activeMenu.value = "集群管理";
+  activeSubMenu.value = "集群管理";
+  expandedMenus.value = { "集群管理": true };
+}
+
+function backToClusterList(): void {
+  inClusterManagement.value = false;
+  activeMenu.value = "集群管理";
+  activeSubMenu.value = "集群管理";
+  expandedMenus.value = { "集群管理": true };
+}
+
+function toggleUserMenu(): void {
+  showUserMenu.value = !showUserMenu.value;
+}
+
+function handleLogoutClick(): void {
+  showUserMenu.value = false;
+  emit("logout");
+}
+
+function handleUserMenuClickOutside(event: MouseEvent): void {
+  if (!showUserMenu.value) return;
+  const target = event.target as Node | null;
+  if (!target) return;
+  if (avatarDropdownRef.value?.contains(target)) return;
+  showUserMenu.value = false;
 }
 
 onMounted(async () => {
+  document.addEventListener("click", handleUserMenuClickOutside);
   const userInfoRaw = localStorage.getItem("userInfo");
   const username = userInfoRaw ? (JSON.parse(userInfoRaw).username as string | undefined) : undefined;
   try {
@@ -287,6 +354,10 @@ onMounted(async () => {
   } catch (error) {
     console.error("Failed to load dashboard overview", error);
   }
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("click", handleUserMenuClickOutside);
 });
 
 async function loadClusters(): Promise<void> {
