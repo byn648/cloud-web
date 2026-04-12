@@ -90,6 +90,14 @@
           </option>
         </select>
 
+        <label>计费配置</label>
+        <select v-model.number="dialog.form.priceConfigId" :disabled="dialog.mode === 'edit'">
+          <option :value="0">请选择计费配置</option>
+          <option v-for="item in priceConfigs" :key="item.id" :value="item.id">
+            {{ item.configName }}{{ item.isSystem === 1 ? " (系统)" : "" }}
+          </option>
+        </select>
+
         <div v-if="dialog.form.clusterUuid" class="cluster-overview">
           <div class="overview-head">
             <div>
@@ -121,14 +129,14 @@
                 <span>{{ formatMetric(card.total) }} {{ card.unit }}</span>
               </div>
               <div class="card-hint">
-                资源池已分配 {{ formatMetric(card.allocated) }} {{ card.unit }} ({{
+                资源池已分配容量 {{ formatMetric(card.allocated) }} {{ card.unit }} ({{
                   formatPercent(card.allocatedPercent)
                 }})
               </div>
               <div class="progress">
                 <div class="progress-inner" :style="{ width: `${Math.min(100, Math.max(0, card.allocatedPercent))}%` }"></div>
               </div>
-              <div class="card-sub">实时使用率 {{ formatPercent(card.usagePercent) }}</div>
+              <div class="card-sub">当前物理分配率 {{ formatPercent(card.allocatedPercent) }}</div>
             </div>
           </div>
         </div>
@@ -205,8 +213,12 @@ import {
   type UpdateProjectClusterRequest,
   updateProjectClusterApi
 } from "../../../api/manager/project";
+import { getBillingPriceConfigListApi, type BillingPriceConfig } from "../../../api/manager/billing";
+import {
+  getResourceDashboardSummaryApi,
+  type ResourceDashboardSummary
+} from "../../../api/manager/dashboard";
 import { searchClusterApi, type Cluster } from "../../../api/manager/cluster";
-import { getClusterResourcesApi, type ClusterResourcesMetrics } from "../../../api/console/monitor";
 
 const loading = ref(false);
 const errorMsg = ref("");
@@ -214,6 +226,7 @@ const selectedProjectId = ref(0);
 const projects = ref<Project[]>([]);
 const clusters = ref<Cluster[]>([]);
 const resources = ref<ProjectCluster[]>([]);
+const priceConfigs = ref<BillingPriceConfig[]>([]);
 
 const filters = reactive({
   clusterUuid: ""
@@ -226,6 +239,7 @@ const dialog = reactive({
   form: {
     projectId: 0,
     clusterUuid: "",
+    priceConfigId: 0,
     cpuLimit: 0,
     cpuOvercommitRatio: 1,
     memLimit: 0,
@@ -234,10 +248,14 @@ const dialog = reactive({
     gpuLimit: 0,
     gpuOvercommitRatio: 1,
     podsLimit: 0
+  },
+  baseline: {
+    cpu: 0,
+    memory: 0,
+    storage: 0,
+    gpu: 0
   }
 });
-
-const BYTES_PER_GIB = 1024 * 1024 * 1024;
 const DIALOG_OVERVIEW_REFRESH_MS = 10_000;
 
 interface DialogOverviewCard {
@@ -248,67 +266,57 @@ interface DialogOverviewCard {
   allocated: number;
   available: number;
   allocatedPercent: number;
-  usagePercent: number;
 }
 
 const dialogOverview = reactive({
   loading: false,
   error: "",
   updatedAt: 0,
-  metrics: null as ClusterResourcesMetrics | null,
-  allocated: {
-    cpu: 0,
-    memoryGi: 0,
-    storageGi: 0,
-    gpu: 0
-  }
+  summary: null as ResourceDashboardSummary | null
 });
 
 let dialogOverviewTimer: ReturnType<typeof setInterval> | null = null;
 
 const dialogOverviewCards = computed<DialogOverviewCard[]>(() => {
-  const metrics = dialogOverview.metrics;
-  const cpuTotal = metrics ? getPreferValue(metrics.cpu.allocatable, metrics.cpu.capacity) : 0;
-  const memTotalGi = metrics
-    ? bytesToGi(getPreferValue(metrics.memory.allocatableBytes, metrics.memory.capacityBytes))
-    : 0;
-  const storageTotalGi = metrics
-    ? bytesToGi(getPreferValue(metrics.storage.allocatableBytes, metrics.storage.capacityBytes))
-    : 0;
-  const gpuTotal = metrics ? getPreferValue(metrics.gpu.allocatable, metrics.gpu.capacity) : 0;
+  const summary = dialogOverview.summary;
+  const cpuOverview = summary?.allocationOverview.cpu;
+  const memOverview = summary?.allocationOverview.mem;
+  const storageOverview = summary?.allocationOverview.storage;
+  const gpuOverview = summary?.allocationOverview.gpu;
+
+  const cpuAllocated = Math.max(0, safeNumber(cpuOverview?.capacity) - dialog.baseline.cpu);
+  const memAllocated = Math.max(0, safeNumber(memOverview?.capacity) - dialog.baseline.memory);
+  const storageAllocated = Math.max(0, safeNumber(storageOverview?.limit) - dialog.baseline.storage);
+  const gpuAllocated = Math.max(0, safeNumber(gpuOverview?.capacity) - dialog.baseline.gpu);
 
   return [
     buildOverviewCard(
       "cpu",
       "CPU 资源",
-      "核",
-      cpuTotal,
-      dialogOverview.allocated.cpu,
-      metrics?.cpu.usagePercent ?? 0
+      cpuOverview?.unit || "核",
+      safeNumber(cpuOverview?.physical),
+      cpuAllocated
     ),
     buildOverviewCard(
       "memory",
       "内存资源",
-      "GiB",
-      memTotalGi,
-      dialogOverview.allocated.memoryGi,
-      metrics?.memory.usagePercent ?? 0
+      memOverview?.unit || "GiB",
+      safeNumber(memOverview?.physical),
+      memAllocated
     ),
     buildOverviewCard(
       "storage",
       "存储资源",
-      "GiB",
-      storageTotalGi,
-      dialogOverview.allocated.storageGi,
-      metrics?.storage.usagePercent ?? 0
+      storageOverview?.unit || "GiB",
+      safeNumber(storageOverview?.physical),
+      storageAllocated
     ),
     buildOverviewCard(
       "gpu",
       "GPU 资源",
-      "个",
-      gpuTotal,
-      dialogOverview.allocated.gpu,
-      metrics?.gpu.usagePercent ?? 0
+      gpuOverview?.unit || "个",
+      safeNumber(gpuOverview?.physical),
+      gpuAllocated
     )
   ];
 });
@@ -339,10 +347,6 @@ function formatTime(timestamp: number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-function bytesToGi(v: number): number {
-  return safeNumber(v) / BYTES_PER_GIB;
-}
-
 function safeNumber(v: number | undefined): number {
   if (typeof v !== "number" || Number.isNaN(v) || !Number.isFinite(v)) {
     return 0;
@@ -350,25 +354,15 @@ function safeNumber(v: number | undefined): number {
   return v;
 }
 
-function getPreferValue(primary: number, fallback: number): number {
-  const primaryValue = safeNumber(primary);
-  if (primaryValue > 0) {
-    return primaryValue;
-  }
-  return safeNumber(fallback);
-}
-
 function buildOverviewCard(
   key: DialogOverviewCard["key"],
   label: string,
   unit: string,
   total: number,
-  allocated: number,
-  usagePercent: number
+  allocated: number
 ): DialogOverviewCard {
   const safeTotal = safeNumber(total);
   const safeAllocated = safeNumber(allocated);
-  const safeUsagePercent = safeNumber(usagePercent);
   return {
     key,
     label,
@@ -376,8 +370,7 @@ function buildOverviewCard(
     total: safeTotal,
     allocated: safeAllocated,
     available: safeTotal - safeAllocated,
-    allocatedPercent: safeTotal > 0 ? (safeAllocated / safeTotal) * 100 : 0,
-    usagePercent: safeUsagePercent
+    allocatedPercent: safeTotal > 0 ? (safeAllocated / safeTotal) * 100 : 0
   };
 }
 
@@ -389,6 +382,13 @@ async function loadProjects() {
 async function loadClusters() {
   const resp = await searchClusterApi();
   clusters.value = resp.items ?? [];
+}
+
+async function loadPriceConfigs() {
+  priceConfigs.value = await getBillingPriceConfigListApi();
+  if (dialog.mode === "create" && dialog.form.priceConfigId <= 0) {
+    dialog.form.priceConfigId = priceConfigs.value[0]?.id ?? 0;
+  }
 }
 
 async function loadData() {
@@ -418,6 +418,7 @@ function handleProjectChange() {
 function resetDialogForm() {
   dialog.form.projectId = selectedProjectId.value;
   dialog.form.clusterUuid = "";
+  dialog.form.priceConfigId = priceConfigs.value[0]?.id ?? 0;
   dialog.form.cpuLimit = 0;
   dialog.form.cpuOvercommitRatio = 1;
   dialog.form.memLimit = 0;
@@ -426,17 +427,17 @@ function resetDialogForm() {
   dialog.form.gpuLimit = 0;
   dialog.form.gpuOvercommitRatio = 1;
   dialog.form.podsLimit = 0;
+  dialog.baseline.cpu = 0;
+  dialog.baseline.memory = 0;
+  dialog.baseline.storage = 0;
+  dialog.baseline.gpu = 0;
 }
 
 function resetDialogOverview() {
   dialogOverview.loading = false;
   dialogOverview.error = "";
   dialogOverview.updatedAt = 0;
-  dialogOverview.metrics = null;
-  dialogOverview.allocated.cpu = 0;
-  dialogOverview.allocated.memoryGi = 0;
-  dialogOverview.allocated.storageGi = 0;
-  dialogOverview.allocated.gpu = 0;
+  dialogOverview.summary = null;
 }
 
 function stopDialogOverviewPolling() {
@@ -471,31 +472,7 @@ async function refreshDialogClusterOverview() {
   dialogOverview.loading = true;
   dialogOverview.error = "";
   try {
-    const [metrics, projectClusters] = await Promise.all([
-      getClusterResourcesApi({ clusterUuid }),
-      searchProjectClusterApi({ projectId: 0, clusterUuid })
-    ]);
-
-    let allocatedCPU = 0;
-    let allocatedMemoryGi = 0;
-    let allocatedStorageGi = 0;
-    let allocatedGPU = 0;
-
-    for (const item of projectClusters) {
-      if (dialog.mode === "edit" && item.id === dialog.targetId) {
-        continue;
-      }
-      allocatedCPU += safeNumber(item.cpuCapacity > 0 ? item.cpuCapacity : item.cpuLimit);
-      allocatedMemoryGi += safeNumber(item.memCapacity > 0 ? item.memCapacity : item.memLimit);
-      allocatedStorageGi += safeNumber(item.storageLimit);
-      allocatedGPU += safeNumber(item.gpuCapacity > 0 ? item.gpuCapacity : item.gpuLimit);
-    }
-
-    dialogOverview.metrics = metrics;
-    dialogOverview.allocated.cpu = allocatedCPU;
-    dialogOverview.allocated.memoryGi = allocatedMemoryGi;
-    dialogOverview.allocated.storageGi = allocatedStorageGi;
-    dialogOverview.allocated.gpu = allocatedGPU;
+    dialogOverview.summary = await getResourceDashboardSummaryApi({ clusterUuid });
     dialogOverview.updatedAt = Date.now();
   } catch (error) {
     dialogOverview.error = error instanceof Error ? error.message : "集群资源概览加载失败";
@@ -518,6 +495,7 @@ function openEdit(item: ProjectCluster) {
   dialog.targetId = item.id;
   dialog.form.projectId = item.projectId;
   dialog.form.clusterUuid = item.clusterUuid;
+  dialog.form.priceConfigId = 0;
   dialog.form.cpuLimit = item.cpuLimit;
   dialog.form.cpuOvercommitRatio = item.cpuOvercommitRatio || 1;
   dialog.form.memLimit = item.memLimit;
@@ -526,6 +504,10 @@ function openEdit(item: ProjectCluster) {
   dialog.form.gpuLimit = item.gpuLimit || 0;
   dialog.form.gpuOvercommitRatio = item.gpuOvercommitRatio || 1;
   dialog.form.podsLimit = item.podsLimit || 0;
+  dialog.baseline.cpu = safeNumber(item.cpuCapacity > 0 ? item.cpuCapacity : item.cpuLimit);
+  dialog.baseline.memory = safeNumber(item.memCapacity > 0 ? item.memCapacity : item.memLimit);
+  dialog.baseline.storage = safeNumber(item.storageLimit);
+  dialog.baseline.gpu = safeNumber(item.gpuCapacity > 0 ? item.gpuCapacity : item.gpuLimit);
   void refreshDialogClusterOverview();
   startDialogOverviewPolling();
 }
@@ -548,19 +530,27 @@ async function submitDialog() {
     errorMsg.value = "资源配额不能小于0";
     return;
   }
+  if (dialog.mode === "create" && dialog.form.priceConfigId <= 0) {
+    errorMsg.value = "请选择计费配置";
+    return;
+  }
 
   try {
     if (dialog.mode === "create") {
       const payload: AddProjectClusterRequest = {
         projectId: dialog.form.projectId,
         clusterUuid: dialog.form.clusterUuid,
+        priceConfigId: dialog.form.priceConfigId,
         cpuLimit: dialog.form.cpuLimit,
         cpuOvercommitRatio: dialog.form.cpuOvercommitRatio,
+        cpuCapacity: dialog.form.cpuLimit * dialog.form.cpuOvercommitRatio,
         memLimit: dialog.form.memLimit,
         memOvercommitRatio: dialog.form.memOvercommitRatio,
+        memCapacity: dialog.form.memLimit * dialog.form.memOvercommitRatio,
         storageLimit: dialog.form.storageLimit,
         gpuLimit: dialog.form.gpuLimit,
         gpuOvercommitRatio: dialog.form.gpuOvercommitRatio,
+        gpuCapacity: dialog.form.gpuLimit * dialog.form.gpuOvercommitRatio,
         podsLimit: dialog.form.podsLimit
       };
       await addProjectClusterApi(payload);
@@ -568,11 +558,14 @@ async function submitDialog() {
       const payload: UpdateProjectClusterRequest = {
         cpuLimit: dialog.form.cpuLimit,
         cpuOvercommitRatio: dialog.form.cpuOvercommitRatio,
+        cpuCapacity: dialog.form.cpuLimit * dialog.form.cpuOvercommitRatio,
         memLimit: dialog.form.memLimit,
         memOvercommitRatio: dialog.form.memOvercommitRatio,
+        memCapacity: dialog.form.memLimit * dialog.form.memOvercommitRatio,
         storageLimit: dialog.form.storageLimit,
         gpuLimit: dialog.form.gpuLimit,
         gpuOvercommitRatio: dialog.form.gpuOvercommitRatio,
+        gpuCapacity: dialog.form.gpuLimit * dialog.form.gpuOvercommitRatio,
         podsLimit: dialog.form.podsLimit
       };
       await updateProjectClusterApi(dialog.targetId, payload);
@@ -630,7 +623,7 @@ onBeforeUnmount(() => {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadProjects(), loadClusters()]);
+    await Promise.all([loadProjects(), loadClusters(), loadPriceConfigs()]);
   } catch (error) {
     errorMsg.value = error instanceof Error ? error.message : "初始化失败";
   }

@@ -26,15 +26,17 @@
         <select :value="modelValue.clusterType" @change="onInput('clusterType', ($event.target as HTMLSelectElement).value)">
           <option value="standard">标准集群</option>
           <option value="edge">边缘集群</option>
+          <option value="serverless">Serverless</option>
         </select>
       </label>
 
       <label class="field">
         <span>环境类型</span>
         <select :value="modelValue.environment" @change="onInput('environment', ($event.target as HTMLSelectElement).value)">
-          <option value="prod">生产环境</option>
-          <option value="staging">测试环境</option>
-          <option value="edge">边缘环境</option>
+          <option value="production">生产环境</option>
+          <option value="staging">预发环境</option>
+          <option value="testing">测试环境</option>
+          <option value="development">开发环境</option>
         </select>
       </label>
     </div>

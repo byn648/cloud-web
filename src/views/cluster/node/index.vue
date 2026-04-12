@@ -97,7 +97,7 @@
                 <div class="hc-meta-info">
                   <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/></svg> {{ node.architecture || 'amd64' }}</span>
                   <span class="divider"></span>
-                  <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {{ node.createTime ? formatDate(node.createTime) : '2025/9/21' }}</span>
+                  <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {{ node.createdAt ? formatDate(node.createdAt) : '2025/9/21' }}</span>
                 </div>
               </div>
             </div>

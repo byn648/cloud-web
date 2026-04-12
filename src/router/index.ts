@@ -34,6 +34,11 @@ const router = createRouter({
       component: () => import("../views/index/index.vue")
     },
     {
+      path: "/system/user",
+      name: "SystemUserManagement",
+      component: () => import("../views/index/index.vue")
+    },
+    {
       path: "/:pathMatch(.*)*",
       redirect: HOME_PATH
     }

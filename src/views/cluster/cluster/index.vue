@@ -1,232 +1,244 @@
 <template>
-  <div class="m3-layout-v3">
-    <header class="content-header-bar">
-      <div class="header-left">
-        <h2>集群资源大盘</h2>
-        <span class="count-badge">共 {{ clusters.length }} 个</span>
+  <div class="cluster-page">
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <h2>集群管理</h2>
+        <span class="count-chip">共 {{ filteredClusters.length }} 个</span>
       </div>
-      
-      <div class="header-right">
-        <div class="m3-segmented-horizontal">
-          <button
-            type="button"
-            class="seg-btn"
-            :class="{ active: viewMode === 'card' }"
-            @click="viewMode = 'card'"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
-            卡片
-          </button>
-          <button
-            type="button"
-            class="seg-btn"
-            :class="{ active: viewMode === 'table' }"
-            @click="viewMode = 'table'"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            列表
-          </button>
-        </div>
-        
-        <div class="header-divider"></div>
 
-        <div class="icon-btn-group">
-          <button 
-            class="square-icon-btn" 
-            :class="{ active: showFilters }" 
-            @click="showFilters = !showFilters"
-            title="检索/过滤"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </button>
-          
-          <button class="square-icon-btn" @click="refresh" title="刷新数据">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
-          </button>
-
-          <button class="square-icon-btn" title="排序">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-          </button>
-          <button class="square-icon-btn" title="设置">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
+      <div class="toolbar-right">
+        <div class="switch-group">
+          <button :class="{ active: viewMode === 'card' }" @click="switchViewMode('card')">卡片</button>
+          <button :class="{ active: viewMode === 'table' }" @click="switchViewMode('table')">列表</button>
         </div>
+        <button class="primary" :disabled="loading" @click="openAddPage">新增集群</button>
+        <button class="outline" :disabled="loading" @click="showSearchBar = !showSearchBar">
+          {{ showSearchBar ? "收起筛选" : "展开筛选" }}
+        </button>
+        <button class="outline" :disabled="loading || refreshLoading" @click="refreshData">
+          {{ refreshLoading ? "刷新中..." : "刷新" }}
+        </button>
+        <button class="warning" :disabled="loading || syncAllLoading || clusters.length === 0" @click="handleSyncAll">
+          {{ syncAllLoading ? "同步中..." : "同步全部" }}
+        </button>
       </div>
     </header>
 
-    <transition name="slide-fade">
-      <div v-if="showFilters" class="filter-dropdown-panel">
-        <form class="filter-form-horizontal" @submit.prevent="loadClusters">
-          <div class="input-box">
-            <span class="prefix-icon">🔍</span>
-            <input v-model.trim="keyword" type="text" class="m3-input" placeholder="输入集群名称进行搜索..." />
-          </div>
-          
-          <div class="input-box">
-            <select v-model="environment" class="m3-select">
-              <option value="">🌎 全部运行环境</option>
-              <option value="prod">🚀 生产环境</option>
-              <option value="staging">🧪 测试环境</option>
-              <option value="edge">📡 边缘节点</option>
-            </select>
-          </div>
-          
-          <button type="submit" class="m3-btn primary">执行查询</button>
-          <button type="button" class="m3-btn text" @click="resetFilters">重置</button>
-        </form>
-      </div>
-    </transition>
+    <section v-if="showSearchBar" class="search-card">
+      <ClusterSearch
+        v-model="searchForm"
+        @search="handleSearch"
+        @reset="handleResetSearch"
+      />
+    </section>
 
-    <div v-if="errorMsg" class="m3-alert error">{{ errorMsg }}</div>
-    <div v-if="loading" class="m3-loading">
+    <p v-if="errorMsg" class="notice error">{{ errorMsg }}</p>
+    <p v-if="successMsg" class="notice success">{{ successMsg }}</p>
+
+    <section v-if="loading" class="state-card loading">
       <div class="spinner"></div>
-      <span>正在读取集群架构...</span>
-    </div>
+      <span>正在加载集群数据...</span>
+    </section>
 
     <template v-else>
-      <section v-if="viewMode === 'card'" class="panoramic-card-list">
-        <article
-          v-for="cluster in clusters"
+      <section v-if="pagedClusters.length === 0" class="state-card empty">
+        当前条件下暂无集群数据
+      </section>
+
+      <section v-else-if="viewMode === 'card'" class="card-grid">
+        <ClusterCard
+          v-for="cluster in pagedClusters"
           :key="cluster.id"
-          class="pano-card clickable-card"
-          @click="openConsole(cluster.id)"
-        >
-          
-          <div class="pano-section info-sec">
-            <div class="icon-badge">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-            </div>
-            <div class="info-text">
-              <div class="title-row">
-                <h3>{{ cluster.name }}</h3>
-                <span class="m3-chip" :class="cluster.environment">{{ formatEnvironment(cluster.environment) }}</span>
-              </div>
-              <p class="sub-info">{{ cluster.clusterType }} • 版本 {{ cluster.version }}</p>
-              <p class="date-info">创建于 {{ formatDate(cluster.createdAt) }}</p>
-            </div>
-          </div>
-
-          <div class="pano-section metrics-sec">
-            <div class="metric-mini" v-for="metric in metrics(cluster)" :key="metric.name">
-              <div class="m-head">
-                <span class="m-name">{{ metric.name }}</span>
-                <span class="m-val">{{ metric.value }}</span>
-              </div>
-              <div class="m-bar"><i :style="{ width: metric.value }" :class="metric.level"></i></div>
-            </div>
-          </div>
-
-          <div class="pano-section action-sec">
-            <div class="status-group">
-              <div class="s-badge" :class="healthClass(cluster.healthStatus)">
-                <span class="dot"></span> {{ healthText(cluster.healthStatus) }}
-              </div>
-              <div class="s-badge ok">
-                <span class="dot"></span> 已同步
-              </div>
-            </div>
-            
-            <div class="btn-group">
-              <button class="m3-btn primary fill">进入控制台</button>
-              <div class="sub-actions">
-                <button class="m3-btn text small" @click.stop>同步</button>
-                <button class="m3-btn text small" @click.stop>定价</button>
-                <button class="m3-btn text danger small" @click.stop>删除</button>
-              </div>
-            </div>
-          </div>
-
-        </article>
+          :cluster="cluster"
+          :sync-loading="Boolean(syncLoadingMap[cluster.id])"
+          :delete-loading="Boolean(deleteLoadingMap[cluster.id])"
+          @open="openConsole"
+          @sync="handleSync"
+          @delete="handleDelete"
+        />
       </section>
 
-      <section v-else class="spaced-table-wrap">
-        <div class="table-header-row">
-          <div class="th">集群名称</div>
-          <div class="th">环境/类型</div>
-          <div class="th">版本/状态</div>
-          <div class="th">资源使用率 (CPU/Mem/Pod/Storage)</div>
-          <div class="th">创建时间</div>
-          <div class="th">操作</div>
-        </div>
-        
-        <div class="spaced-rows">
-          <div class="spaced-row clickable-row" v-for="cluster in clusters" :key="`table-${cluster.id}`" @click="openConsole(cluster.id)">
-            <div class="td main-td">
-              <strong>{{ cluster.name }}</strong>
-            </div>
-            
-            <div class="td env-td">
-              <span class="m3-chip small" :class="cluster.environment">{{ formatEnvironment(cluster.environment) }}</span>
-              <span class="type-text">{{ cluster.clusterType }}</span>
-            </div>
-            
-            <div class="td ver-td">
-              <span class="mono-ver">v{{ cluster.version }}</span>
-              <span class="s-badge inline" :class="healthClass(cluster.healthStatus)">
-                {{ healthText(cluster.healthStatus) }}
-              </span>
-            </div>
-
-            <div class="td micro-metrics-td">
-              <div class="micro-bar-group" v-for="metric in metrics(cluster)" :key="metric.name" :title="metric.name + ': ' + metric.value">
-                <div class="micro-bg">
-                  <div class="micro-fill" :style="{ width: metric.value }" :class="metric.level"></div>
-                </div>
-                <span class="micro-label">{{ metric.value }}</span>
-              </div>
-            </div>
-            
-            <div class="td date-td">{{ formatDate(cluster.createdAt) }}</div>
-            <div class="td action-td">
-              <button class="table-console-btn" @click.stop="openConsole(cluster.id)">进入控制台</button>
-            </div>
-          </div>
-        </div>
+      <section v-else class="table-wrap">
+        <table class="cluster-table">
+          <thead>
+            <tr>
+              <th>集群名称</th>
+              <th>环境/类型</th>
+              <th>版本</th>
+              <th>健康状态</th>
+              <th>同步状态</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="cluster in pagedClusters" :key="`table-${cluster.id}`">
+              <td>
+                <button class="name-link" @click="openConsole(cluster.id)">{{ cluster.name }}</button>
+              </td>
+              <td>
+                <span class="env-chip" :class="resolveEnvironmentClass(cluster.environment)">
+                  {{ formatEnvironment(cluster.environment) }}
+                </span>
+                <span class="muted"> / {{ resolveClusterType(cluster.clusterType) }}</span>
+              </td>
+              <td>{{ cluster.version || "-" }}</td>
+              <td>
+                <span class="status-chip" :class="resolveHealth(cluster.healthStatus).className">
+                  {{ resolveHealth(cluster.healthStatus).label }}
+                </span>
+              </td>
+              <td>
+                <span class="status-chip" :class="resolveSync(cluster.status).className">
+                  {{ resolveSync(cluster.status).label }}
+                </span>
+              </td>
+              <td>{{ formatDate(cluster.createdAt) }}</td>
+              <td class="actions">
+                <button class="outline" :disabled="syncLoadingMap[cluster.id]" @click="handleSync(cluster)">
+                  {{ syncLoadingMap[cluster.id] ? "同步中" : "同步" }}
+                </button>
+                <button
+                  class="danger"
+                  :disabled="deleteLoadingMap[cluster.id] || syncLoadingMap[cluster.id]"
+                  @click="handleDelete(cluster)"
+                >
+                  {{ deleteLoadingMap[cluster.id] ? "删除中" : "删除" }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </section>
+
+      <footer v-if="filteredClusters.length > 0" class="pagination">
+        <div class="left">
+          <span>共 {{ filteredClusters.length }} 条</span>
+          <select v-model.number="pagination.pageSize" @change="handlePageSizeChange">
+            <option :value="12">12 / 页</option>
+            <option :value="20">20 / 页</option>
+            <option :value="36">36 / 页</option>
+            <option :value="50">50 / 页</option>
+          </select>
+        </div>
+        <div class="right">
+          <button :disabled="pagination.page <= 1" @click="changePage(pagination.page - 1)">上一页</button>
+          <span>{{ pagination.page }} / {{ pageCount }}</span>
+          <button :disabled="pagination.page >= pageCount" @click="changePage(pagination.page + 1)">下一页</button>
+        </div>
+      </footer>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { searchClusterApi, type Cluster } from "../../../api/manager/cluster";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import {
+  deleteClusterApi,
+  searchClusterApi,
+  syncAllClustersApi,
+  syncClusterApi,
+  type Cluster
+} from "../../../api/manager/cluster";
+import { clusterTypeOptions, environmentOptions, healthStatusConfig, syncStatusConfig } from "./constants";
+import ClusterCard from "./modules/cluster-card.vue";
+import ClusterSearch, { type ClusterSearchForm } from "./modules/cluster-search.vue";
 
 const emit = defineEmits<{
   "open-console": [clusterId: number];
+  "open-add": [];
 }>();
 
-const clusters = ref<Cluster[]>([]);
 const loading = ref(false);
-const errorMsg = ref("");
+const refreshLoading = ref(false);
+const syncAllLoading = ref(false);
+const showSearchBar = ref(false);
 const viewMode = ref<"card" | "table">("card");
-const keyword = ref("");
-const environment = ref("");
-const showFilters = ref(false); // 控制过滤面板展开/收起的变量
+const clusters = ref<Cluster[]>([]);
+const errorMsg = ref("");
+const successMsg = ref("");
+const syncLoadingMap = reactive<Record<number, boolean>>({});
+const deleteLoadingMap = reactive<Record<number, boolean>>({});
 
-function percent(value: number): string {
-  if (!Number.isFinite(value)) return "0.0%";
-  const val = Math.max(0, Math.min(100, value));
-  return `${val.toFixed(1)}%`;
+const searchForm = ref<ClusterSearchForm>({
+  name: "",
+  environment: "",
+  clusterType: ""
+});
+
+const pagination = reactive({
+  page: 1,
+  pageSize: 12
+});
+
+let successTimer = 0;
+
+const filteredClusters = computed(() => {
+  const name = searchForm.value.name.trim().toLowerCase();
+  const environment = searchForm.value.environment.trim().toLowerCase();
+  const clusterType = searchForm.value.clusterType.trim().toLowerCase();
+
+  return clusters.value.filter((cluster) => {
+    if (name && !cluster.name.toLowerCase().includes(name)) {
+      return false;
+    }
+    if (environment && cluster.environment.toLowerCase() !== environment) {
+      return false;
+    }
+    if (clusterType && cluster.clusterType.toLowerCase() !== clusterType) {
+      return false;
+    }
+    return true;
+  });
+});
+
+const pageCount = computed(() => {
+  const total = filteredClusters.value.length;
+  if (total <= 0) {
+    return 1;
+  }
+  return Math.max(1, Math.ceil(total / pagination.pageSize));
+});
+
+const pagedClusters = computed(() => {
+  const start = (pagination.page - 1) * pagination.pageSize;
+  return filteredClusters.value.slice(start, start + pagination.pageSize);
+});
+
+function showSuccess(message: string): void {
+  successMsg.value = message;
+  window.clearTimeout(successTimer);
+  successTimer = window.setTimeout(() => {
+    successMsg.value = "";
+  }, 2200);
 }
 
-function healthText(status: number): string {
-  if (status === 1) return "健康";
-  if (status === 2) return "异常";
-  if (status === 3) return "降级";
-  return "未知";
+function clearNotices(): void {
+  errorMsg.value = "";
+  successMsg.value = "";
 }
 
-function healthClass(status: number): string {
-  if (status === 1) return "ok";
-  if (status === 2) return "danger";
-  return "warn";
+function resolveHealth(status: number): { label: string; className: string } {
+  return healthStatusConfig[status] || { label: "未知", className: "warn" };
 }
 
-function formatEnvironment(env: string): string {
-  if (env === "prod") return "生产";
-  if (env === "staging") return "测试";
-  if (env === "edge") return "边缘";
-  return env || "-";
+function resolveSync(status: number): { label: string; className: string } {
+  return syncStatusConfig[status] || { label: "未知", className: "warn" };
+}
+
+function resolveEnvironmentClass(environment: string): string {
+  const option = environmentOptions.find((item) => item.value === environment);
+  return option?.className || "";
+}
+
+function resolveClusterType(clusterType: string): string {
+  const option = clusterTypeOptions.find((item) => item.value === clusterType);
+  return option?.label || clusterType || "-";
+}
+
+function formatEnvironment(environment: string): string {
+  const option = environmentOptions.find((item) => item.value === environment);
+  return option?.label || environment || "未知";
 }
 
 function formatDate(unixSeconds: number): string {
@@ -242,335 +254,493 @@ function formatDate(unixSeconds: number): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
-function level(value: number): "low" | "mid" | "high" {
-  if (value >= 70) return "high";
-  if (value >= 40) return "mid";
-  return "low";
+function syncPagination(): void {
+  if (pagination.page > pageCount.value) {
+    pagination.page = pageCount.value;
+  }
+  if (pagination.page < 1) {
+    pagination.page = 1;
+  }
 }
 
-function metrics(cluster: Cluster) {
-  return [
-    { name: "CPU", value: percent(cluster.cpuUsage), level: level(cluster.cpuUsage) },
-    { name: "内存", value: percent(cluster.memoryUsage), level: level(cluster.memoryUsage) },
-    { name: "Pod", value: percent(cluster.podUsage), level: level(cluster.podUsage) },
-    { name: "存储", value: percent(cluster.storageUsage), level: level(cluster.storageUsage) }
-  ];
-}
-
-function openConsole(clusterId: number): void {
-  if (!Number.isFinite(clusterId) || clusterId <= 0) return;
-  emit("open-console", clusterId);
-}
-
-async function loadClusters(): Promise<void> {
+async function fetchClusters(): Promise<void> {
   loading.value = true;
-  errorMsg.value = "";
+  clearNotices();
+
   try {
-    const res = await searchClusterApi(keyword.value || undefined, environment.value || undefined);
-    clusters.value = res.items ?? [];
+    const response = await searchClusterApi({
+      page: 1,
+      pageSize: 200,
+      name: searchForm.value.name || undefined,
+      environment: searchForm.value.environment || undefined
+    });
+    clusters.value = response.items || [];
+    syncPagination();
   } catch (error) {
-    errorMsg.value = error instanceof Error ? error.message : "获取集群失败";
+    errorMsg.value = error instanceof Error ? error.message : "获取集群列表失败";
   } finally {
     loading.value = false;
   }
 }
 
-async function refresh(): Promise<void> {
-  await loadClusters();
+function handleSearch(form: ClusterSearchForm): void {
+  searchForm.value = { ...form };
+  pagination.page = 1;
+  void fetchClusters();
 }
 
-function resetFilters() {
-  keyword.value = "";
-  environment.value = "";
-  loadClusters();
+function handleResetSearch(): void {
+  searchForm.value = {
+    name: "",
+    environment: "",
+    clusterType: ""
+  };
+  pagination.page = 1;
+  void fetchClusters();
+}
+
+function switchViewMode(mode: "card" | "table"): void {
+  if (viewMode.value === mode) {
+    return;
+  }
+  viewMode.value = mode;
+  pagination.page = 1;
+  pagination.pageSize = mode === "card" ? 12 : 20;
+  if (mode === "table") {
+    showSearchBar.value = true;
+  }
+  syncPagination();
+}
+
+function changePage(page: number): void {
+  if (page < 1 || page > pageCount.value) {
+    return;
+  }
+  pagination.page = page;
+}
+
+function handlePageSizeChange(): void {
+  pagination.page = 1;
+  syncPagination();
+}
+
+function openConsole(clusterId: number): void {
+  if (!Number.isFinite(clusterId) || clusterId <= 0) {
+    return;
+  }
+  emit("open-console", clusterId);
+}
+
+function openAddPage(): void {
+  emit("open-add");
+}
+
+async function refreshData(): Promise<void> {
+  refreshLoading.value = true;
+  try {
+    await fetchClusters();
+  } finally {
+    refreshLoading.value = false;
+  }
+}
+
+async function handleSync(cluster: Cluster): Promise<void> {
+  syncLoadingMap[cluster.id] = true;
+  clearNotices();
+
+  try {
+    const message = await syncClusterApi(cluster.id);
+    showSuccess(message || `已触发集群 ${cluster.name} 的同步任务`);
+    await fetchClusters();
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : "同步集群失败";
+  } finally {
+    delete syncLoadingMap[cluster.id];
+  }
+}
+
+async function handleSyncAll(): Promise<void> {
+  if (!confirm("确定要同步全部集群吗？该操作可能需要几分钟。")) {
+    return;
+  }
+
+  syncAllLoading.value = true;
+  clearNotices();
+
+  try {
+    const message = await syncAllClustersApi();
+    showSuccess(message || "已触发全部集群同步任务");
+    await fetchClusters();
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : "同步全部集群失败";
+  } finally {
+    syncAllLoading.value = false;
+  }
+}
+
+async function handleDelete(cluster: Cluster): Promise<void> {
+  if (!confirm(`确定删除集群 "${cluster.name}" 吗？此操作不可恢复。`)) {
+    return;
+  }
+
+  deleteLoadingMap[cluster.id] = true;
+  clearNotices();
+
+  try {
+    const message = await deleteClusterApi(cluster.id);
+    showSuccess(message || `已删除集群 ${cluster.name}`);
+    await fetchClusters();
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : "删除集群失败";
+  } finally {
+    delete deleteLoadingMap[cluster.id];
+  }
 }
 
 onMounted(async () => {
-  await loadClusters();
+  await fetchClusters();
+});
+
+onBeforeUnmount(() => {
+  window.clearTimeout(successTimer);
 });
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto+Mono&family=Roboto:wght@400;500&display=swap');
-
-/* ================= 核心变量 ================= */
-.m3-layout-v3 {
-  --m3-bg: transparent;
-  --m3-surface: #ffffff;
-  --m3-surface-variant: #f4f7fc; /* 截图中的浅灰底色 */
-  --m3-primary: #0b57d0;
-  --m3-primary-hover: #0842a0;
-  --m3-tonal: #d3e3fd;
-  --m3-on-tonal: #041e49;
-  --m3-text-main: #1f1f1f;
-  --m3-text-secondary: #444746;
-  --m3-border: #dadce0;
-  
-  --c-ok: #0f9d58; --c-ok-bg: #e6f4ea;
-  --c-warn: #e37400; --c-warn-bg: #fef7e0;
-  --c-danger: #d93025; --c-danger-bg: #fce8e6;
-
-  font-family: "Google Sans", "Roboto", sans-serif;
+.cluster-page {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  width: 100%;
+  gap: 12px;
 }
 
-/* ================= 顶部 Header 与 操作组 ================= */
-.content-header-bar {
+.toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: 16px;
-  background: var(--m3-surface);
-  padding: 16px 24px;
-  border-radius: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
-.header-left { display: flex; align-items: center; gap: 16px; }
-.header-left h2 { margin: 0; font-size: 24px; font-weight: 500; color: var(--m3-text-main); }
-.count-badge { background: var(--m3-surface-variant); color: var(--m3-text-secondary); padding: 4px 12px; border-radius: 12px; font-size: 14px; font-weight: 500;}
-
-.header-right { display: flex; align-items: center; gap: 16px; }
-.header-divider { width: 1px; height: 24px; background: var(--m3-border); margin: 0 4px; }
-
-/* 水平分段视图按钮 */
-.m3-segmented-horizontal {
-  display: flex;
-  background: var(--m3-surface-variant);
-  border-radius: 12px;
-  padding: 4px;
+.toolbar-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
-.seg-btn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 16px; border: none; background: transparent;
-  border-radius: 8px; color: var(--m3-text-secondary);
-  font-weight: 500; font-size: 14px; cursor: pointer; transition: all 0.2s;
-}
-.seg-btn:hover { background: rgba(0,0,0,0.04); color: var(--m3-text-main); }
-.seg-btn.active { background: var(--m3-surface); color: var(--m3-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
-/* --- 复刻截图风格的方块图标按钮 --- */
-.icon-btn-group {
-  display: flex;
+.toolbar-left h2 {
+  margin: 0;
+  color: #1f2a3d;
+  font-size: 22px;
+}
+
+.count-chip {
+  height: 24px;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #ebf2ff;
+  color: #2756ba;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toolbar-right {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-}
-.square-icon-btn {
-  width: 40px; height: 40px;
-  border-radius: 10px; /* 截图中的圆角方块 */
-  background: var(--m3-surface-variant);
-  border: none;
-  display: flex; align-items: center; justify-content: center;
-  color: #5f6368;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.square-icon-btn:hover {
-  background: #e8eaed;
-  color: var(--m3-text-main);
-}
-.square-icon-btn.active {
-  background: var(--m3-tonal);
-  color: var(--m3-primary);
+  flex-wrap: wrap;
 }
 
-
-/* ================= 展开式检索过滤面板 ================= */
-.filter-dropdown-panel {
-  background: var(--m3-surface);
-  border-radius: 16px;
-  padding: 20px 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  border: 1px solid var(--m3-border);
-  transform-origin: top;
-}
-
-/* 动画过渡 */
-.slide-fade-enter-active, .slide-fade-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.slide-fade-enter-from, .slide-fade-leave-to {
-  opacity: 0; transform: translateY(-10px);
-}
-
-.filter-form-horizontal {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-}
-.input-box {
-  position: relative; display: flex; align-items: center; flex: 1; min-width: 200px;
-}
-.prefix-icon {
-  position: absolute; left: 16px; color: var(--m3-text-secondary); font-size: 14px;
-}
-.m3-input, .m3-select {
-  height: 44px; border-radius: 12px; border: 1px solid var(--m3-border);
-  background: var(--m3-surface-variant); color: var(--m3-text-main); font-size: 14px;
-  padding: 0 16px; outline: none; transition: border-color 0.2s, background 0.2s; width: 100%;
-}
-.m3-input { padding-left: 40px; }
-.m3-input:focus, .m3-select:focus { 
-  border: 2px solid var(--m3-primary); background: var(--m3-surface);
-}
-.m3-input:focus { padding-left: 39px; }
-
-/* 按钮通用 */
-.m3-btn {
-  height: 44px; border-radius: 12px; padding: 0 24px; font-size: 14px; font-weight: 500;
-  cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center;
-}
-.m3-btn.primary { background: var(--m3-primary); color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-.m3-btn.primary:hover { background: var(--m3-primary-hover); box-shadow: 0 1px 4px rgba(0,0,0,0.2); transform: translateY(-1px); }
-.m3-btn.text { background: transparent; color: var(--m3-text-secondary); }
-.m3-btn.text:hover { background: var(--m3-surface-variant); color: var(--m3-text-main);}
-
-
-/* ================= 提示与加载 ================= */
-.m3-alert { padding: 16px 24px; border-radius: 12px; font-size: 15px; }
-.m3-alert.error { background: var(--c-danger-bg); color: var(--c-danger); }
-.m3-loading { padding: 100px 0; display: flex; flex-direction: column; align-items: center; gap: 16px; color: var(--m3-text-secondary); }
-.spinner { width: 40px; height: 40px; border: 4px solid var(--m3-surface-variant); border-top-color: var(--m3-primary); border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-
-/* ================= 宽幅卡片视图 (Panoramic Cards) ================= */
-.panoramic-card-list { display: flex; flex-direction: column; gap: 16px; }
-
-.pano-card {
-  background: var(--m3-surface);
-  border: 1px solid transparent;
-  border-radius: 20px;
-  padding: 24px;
-  display: flex;
-  gap: 32px;
-  align-items: center;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  transition: box-shadow 0.2s, transform 0.2s;
-}
-.pano-card:hover {
-  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
-  transform: translateY(-2px);
-}
-.clickable-card { cursor: pointer; }
-
-.pano-section { display: flex; flex-direction: column; }
-
-/* 左侧信息块 */
-.info-sec { flex: 1.2; flex-direction: row; gap: 20px; align-items: center; min-width: 260px;}
-.icon-badge { width: 56px; height: 56px; background: var(--m3-surface-variant); color: var(--m3-primary); border-radius: 16px; display: grid; place-items: center; flex-shrink: 0; }
-.info-text { display: flex; flex-direction: column; gap: 6px; }
-.title-row { display: flex; align-items: center; gap: 12px; }
-.title-row h3 { margin: 0; font-size: 20px; color: var(--m3-text-main); font-weight: 500; }
-.sub-info { margin: 0; color: var(--m3-text-main); font-size: 14px; }
-.date-info { margin: 0; color: var(--m3-text-secondary); font-size: 13px; }
-
-/* 中间指标块 */
-.metrics-sec { flex: 1.5; display: grid; grid-template-columns: 1fr 1fr; gap: 16px 32px; border-left: 1px solid var(--m3-border); border-right: 1px solid var(--m3-border); padding: 0 32px; }
-.metric-mini { display: flex; flex-direction: column; gap: 8px; }
-.m-head { display: flex; justify-content: space-between; font-size: 13px; }
-.m-name { color: var(--m3-text-secondary); }
-.m-val { font-weight: 500; color: var(--m3-text-main); }
-.m-bar { height: 6px; background: var(--m3-surface-variant); border-radius: 3px; overflow: hidden; }
-.m-bar i { display: block; height: 100%; border-radius: 3px; }
-.m-bar i.low { background: var(--m3-primary); } 
-.m-bar i.mid { background: var(--c-warn); }
-.m-bar i.high { background: var(--c-danger); }
-
-/* 右侧状态与操作块 */
-.action-sec { flex: 1; align-items: flex-end; justify-content: space-between; align-self: stretch; gap: 16px; min-width: 180px;}
-.status-group { display: flex; gap: 12px; margin-bottom: auto; }
-.s-badge { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; font-size: 13px; font-weight: 500; background: var(--m3-surface-variant); color: var(--m3-text-secondary); }
-.s-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.s-badge.ok { background: var(--c-ok-bg); color: var(--c-ok); }
-.s-badge.danger { background: var(--c-danger-bg); color: var(--c-danger); }
-.s-badge.warn { background: var(--c-warn-bg); color: var(--c-warn); }
-
-.btn-group { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; width: 100%; }
-.btn-group .primary { width: 100%; height: 40px; }
-.sub-actions { display: flex; gap: 4px; }
-
-
-/* ================= 悬浮胶囊列表视图 ================= */
-.spaced-table-wrap { display: flex; flex-direction: column; gap: 12px; width: 100%; overflow-x: auto;}
-
-.table-header-row {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 2fr 1fr 0.8fr;
-  padding: 0 24px;
-  min-width: 1020px;
-}
-.table-header-row .th { font-size: 13px; color: var(--m3-text-secondary); font-weight: 500; }
-
-.spaced-rows { display: flex; flex-direction: column; gap: 12px; min-width: 1020px; }
-.spaced-row {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 2fr 1fr 0.8fr;
-  background: var(--m3-surface);
-  border-radius: 16px; 
-  padding: 16px 24px;
-  align-items: center;
-  border: 1px solid transparent;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-  transition: all 0.2s;
-}
-.spaced-row:hover {
-  border-color: var(--m3-border); box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-1px);
-}
-.clickable-row { cursor: pointer; }
-
-.td { font-size: 14px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
-.main-td strong { font-size: 16px; color: var(--m3-text-main); font-weight: 500; }
-.env-td, .ver-td { align-items: flex-start; }
-.type-text { font-size: 13px; color: var(--m3-text-secondary); padding-left: 4px;}
-.mono-ver { font-family: "Roboto Mono", monospace; color: var(--m3-text-main); background: var(--m3-surface-variant); padding: 4px 8px; border-radius: 8px; font-size: 13px;}
-.s-badge.inline { padding: 4px 8px; font-size: 12px; border-radius: 8px; }
-
-/* 列表微型图表 */
-.micro-metrics-td { flex-direction: row; gap: 16px; align-items: center; }
-.micro-bar-group { display: flex; flex-direction: column; gap: 4px; width: 40px; }
-.micro-bg { height: 4px; background: var(--m3-surface-variant); border-radius: 2px; overflow: hidden;}
-.micro-fill { height: 100%; border-radius: 2px; }
-.micro-fill.low { background: var(--m3-primary); }
-.micro-fill.mid { background: var(--c-warn); }
-.micro-fill.high { background: var(--c-danger); }
-.micro-label { font-size: 11px; color: var(--m3-text-secondary); text-align: center; font-family: "Roboto Mono", monospace;}
-
-.date-td { color: var(--m3-text-secondary); font-size: 13px; }
-.action-td { align-items: flex-end; }
-.table-console-btn {
-  border: none;
+.switch-group {
+  border: 1px solid #d8e2ee;
   border-radius: 10px;
-  background: var(--m3-tonal);
-  color: var(--m3-on-tonal);
-  height: 32px;
+  overflow: hidden;
+  display: inline-flex;
+}
+
+.switch-group button {
+  border: none;
+  background: #fff;
+  color: #4b5f7a;
+  height: 34px;
   padding: 0 12px;
   font-size: 13px;
   cursor: pointer;
 }
-.table-console-btn:hover { filter: brightness(0.95); }
 
-/* 芯片通用 */
-.m3-chip { padding: 4px 12px; border-radius: 10px; font-size: 12px; font-weight: 500; background: var(--m3-surface-variant); color: var(--m3-text-secondary); display: inline-block; width: fit-content; }
-.m3-chip.prod { background: #e8f0fe; color: #1967d2; }
-.m3-chip.staging { background: #fef7e0; color: #b06000; }
-.m3-chip.small { padding: 2px 8px; font-size: 12px; border-radius: 6px; }
-
-/* 响应式 */
-@media (max-width: 1300px) {
-  .pano-card { flex-direction: column; align-items: stretch; gap: 24px; }
-  .metrics-sec { border: none; padding: 0; border-top: 1px solid var(--m3-border); padding-top: 24px; }
-  .action-sec { flex-direction: row; align-items: center; }
-  .btn-group { flex-direction: row; width: auto; align-items: center;}
-  .btn-group .primary { width: auto; }
+.switch-group button.active {
+  background: #1a73e8;
+  color: #fff;
 }
 
-@media (max-width: 900px) {
-  .content-header-bar { flex-direction: column; align-items: flex-start; }
-  .header-right { width: 100%; justify-content: space-between; flex-wrap: wrap;}
-  .header-divider { display: none; }
-  .filter-form-horizontal { flex-direction: column; align-items: stretch; }
-  .filter-form-horizontal .m3-btn { width: 100%; }
+.toolbar-right > button {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #d8e2ee;
+  background: #fff;
+  color: #334155;
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.toolbar-right > button.warning {
+  background: #fff7e6;
+  border-color: #ffd591;
+  color: #ad4e00;
+}
+
+.toolbar-right > button.primary {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.toolbar-right > button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.search-card {
+  background: #fff;
+  border: 1px solid #dbe5f1;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.notice {
+  margin: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.notice.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.notice.success {
+  background: #effcf3;
+  border: 1px solid #bbf7d0;
+  color: #0f8e4f;
+}
+
+.state-card {
+  border: 1px dashed #d1d9e6;
+  border-radius: 14px;
+  background: #fff;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5c6f87;
+  font-size: 14px;
+}
+
+.state-card.loading {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid #d6e2f6;
+  border-top-color: #2e6fdb;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid #dbe5f1;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.cluster-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.cluster-table th,
+.cluster-table td {
+  border-bottom: 1px solid #edf2f7;
+  text-align: left;
+  padding: 10px 10px;
+  font-size: 13px;
+  color: #1f2a3d;
+}
+
+.cluster-table th {
+  background: #f8fafd;
+  color: #4b5f7a;
+  font-weight: 700;
+}
+
+.name-link {
+  border: none;
+  background: none;
+  color: #1a5fd1;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+}
+
+.name-link:hover {
+  text-decoration: underline;
+}
+
+.env-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 12px;
+  color: #4b5f7a;
+  background: #eef3f9;
+}
+
+.env-chip.production {
+  color: #116a43;
+  background: #e9f7ef;
+}
+
+.env-chip.staging {
+  color: #ad5c00;
+  background: #fff4df;
+}
+
+.env-chip.testing {
+  color: #0f529b;
+  background: #eaf4ff;
+}
+
+.env-chip.development {
+  color: #5b3ac0;
+  background: #efeafe;
+}
+
+.muted {
+  color: #6b7b92;
+  margin-left: 4px;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-chip.ok {
+  color: #0f8e4f;
+  background: #e8f9ef;
+}
+
+.status-chip.warn {
+  color: #be6a00;
+  background: #fff4e6;
+}
+
+.status-chip.danger {
+  color: #bf1d1d;
+  background: #feecec;
+}
+
+.actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.actions button {
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #d3dceb;
+  padding: 0 10px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.actions button.danger {
+  border-color: #f2c9c9;
+  color: #c53030;
+}
+
+.actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.pagination .left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #4b5f7a;
+  font-size: 13px;
+}
+
+.pagination .left select {
+  height: 30px;
+  border: 1px solid #d2dcea;
+  border-radius: 8px;
+  padding: 0 8px;
+}
+
+.pagination .right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #4b5f7a;
+  font-size: 13px;
+}
+
+.pagination .right button {
+  height: 30px;
+  border: 1px solid #d2dcea;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.pagination .right button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 </style>

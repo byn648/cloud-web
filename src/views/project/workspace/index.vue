@@ -273,6 +273,11 @@ async function submitDialog() {
     errorMsg.value = "请先选择资源池";
     return;
   }
+  const selectedProjectCluster = projectClusters.value.find((item) => item.id === selectedProjectClusterId.value);
+  if (!selectedProjectCluster?.clusterUuid) {
+    errorMsg.value = "当前资源池缺少集群信息";
+    return;
+  }
   if (!dialog.form.name) {
     errorMsg.value = "工作空间名称不能为空";
     return;
@@ -281,11 +286,16 @@ async function submitDialog() {
     errorMsg.value = "命名空间不能为空";
     return;
   }
+  if (dialog.form.cpuAllocated <= 0 || dialog.form.memAllocated <= 0 || dialog.form.podsAllocated <= 0) {
+    errorMsg.value = "CPU、内存和 Pods 配额必须大于 0";
+    return;
+  }
 
   try {
     if (dialog.mode === "create") {
       const payload: AddProjectWorkspaceRequest = {
         projectClusterId: selectedProjectClusterId.value,
+        clusterUuid: selectedProjectCluster.clusterUuid,
         name: dialog.form.name,
         namespace: dialog.form.namespace,
         description: dialog.form.description,

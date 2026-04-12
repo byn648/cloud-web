@@ -9,6 +9,45 @@ type ApiEnvelope<T> = {
   data?: T;
 };
 
+function parseResponsePayload(text: string): unknown {
+  if (!text) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+function resolveLoginErrorMessage(code?: number, message?: string): string {
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+
+  if (typeof code === "number" && code !== 0 && code !== 200) {
+    return `登录失败（${code}）`;
+  }
+
+  return "登录失败";
+}
+
+function normalizeLoginErrorFromPayload(payload: unknown, fallback?: string): string {
+  if (payload && typeof payload === "object") {
+    const wrapped = payload as ApiEnvelope<unknown>;
+    if (typeof wrapped.code === "number" || typeof wrapped.message === "string") {
+      return resolveLoginErrorMessage(wrapped.code, wrapped.message);
+    }
+  }
+
+  if (typeof payload === "string" && payload.trim()) {
+    return payload;
+  }
+
+  return fallback || "登录失败";
+}
+
 function isAuthLoginResponse(value: unknown): value is AuthLoginResponse {
   if (!value || typeof value !== "object") {
     return false;
@@ -28,10 +67,7 @@ function unwrapLoginPayload(payload: unknown): AuthLoginResponse {
       return wrapped.data;
     }
     if (wrapped.code !== undefined && wrapped.code !== 0 && wrapped.code !== 200) {
-      throw new Error(wrapped.message || `Login failed with code ${wrapped.code}`);
-    }
-    if (wrapped.message) {
-      throw new Error(wrapped.message);
+      throw new Error(resolveLoginErrorMessage(wrapped.code, wrapped.message));
     }
   }
 
@@ -50,11 +86,12 @@ export async function loginApi(data: AuthLoginRequest): Promise<AuthLoginRespons
     })
   });
 
+  const text = await response.text();
+  const payload = parseResponsePayload(text);
+
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Login failed with status ${response.status}`);
+    throw new Error(normalizeLoginErrorFromPayload(payload, `Login failed with status ${response.status}`));
   }
 
-  const json = (await response.json()) as unknown;
-  return unwrapLoginPayload(json);
+  return unwrapLoginPayload(payload);
 }

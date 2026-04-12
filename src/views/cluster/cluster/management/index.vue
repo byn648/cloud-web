@@ -92,8 +92,14 @@
             :nodes="nodes"
           />
 
+          <NodeManagement
+            v-else-if="activeTab === 'node'"
+            :nodes="nodes"
+          />
+
           <AuthConfig
             v-else-if="activeTab === 'auth'"
+            v-model="authForm"
           />
 
           <MiddlewareManage
@@ -137,16 +143,25 @@ import {
   type ClusterOverviewMetrics,
   type ClusterResourcesMetrics
 } from "../../../../api/console/monitor";
-import { getClusterDetailApi, syncClusterApi, type Cluster } from "../../../../api/manager/cluster";
+import {
+  getClusterAuthInfoApi,
+  getClusterDetailApi,
+  syncClusterApi,
+  updateClusterApi,
+  updateClusterAuthInfoApi,
+  type ClusterAuthInfo,
+  type ClusterDetail
+} from "../../../../api/manager/cluster";
 import { getNodeListApi, type ClusterNodeInfo } from "../../../../api/manager/node";
 import BasicInfo, { type BasicInfoForm } from "./tabs/BasicInfo.vue";
 import NetworkInfo from "./tabs/NetworkInfo.vue";
-import AuthConfig from "./tabs/AuthConfig.vue";
+import NodeManagement from "./tabs/NodeManagement.vue";
+import AuthConfig, { type AuthConfigForm } from "./tabs/AuthConfig.vue";
 import MiddlewareManage from "./tabs/MiddlewareManage.vue";
 import ResourceInfo from "./tabs/ResourceInfo.vue";
 import OperationLog, { type OperationLogItem } from "./tabs/OperationLog.vue";
 
-type TabKey = "basic" | "network" | "auth" | "middleware" | "resources" | "logs";
+type TabKey = "basic" | "network" | "node" | "auth" | "middleware" | "resources" | "logs";
 
 const props = defineProps<{
   clusterId: number | null;
@@ -159,6 +174,7 @@ const emit = defineEmits<{
 const tabs: Array<{ key: TabKey; label: string; icon: string; panelTitle: string }> = [
   { key: "basic", label: "基本信息", icon: "BI", panelTitle: "集群基本信息" },
   { key: "network", label: "网络信息", icon: "NW", panelTitle: "集群网络信息" },
+  { key: "node", label: "节点管理", icon: "ND", panelTitle: "集群节点概览" },
   { key: "auth", label: "认证配置", icon: "AU", panelTitle: "集群认证配置" },
   { key: "middleware", label: "中间件管理", icon: "MW", panelTitle: "集群中间件管理" },
   { key: "resources", label: "资源信息", icon: "RS", panelTitle: "集群资源信息" },
@@ -172,8 +188,9 @@ const saving = ref(false);
 const noticeMsg = ref("");
 const errorMsg = ref("");
 const monitorLoading = ref(false);
+const INCLUSTER_DEFAULT_API_SERVER = "https://kubernetes.default.svc";
 
-const clusterDetail = ref<Cluster | null>(null);
+const clusterDetail = ref<ClusterDetail | null>(null);
 const nodes = ref<ClusterNodeInfo[]>([]);
 const overviewMetrics = ref<ClusterOverviewMetrics | null>(null);
 const resourceMetrics = ref<ClusterResourcesMetrics | null>(null);
@@ -184,7 +201,7 @@ const basicForm = ref<BasicInfoForm>({
   uuid: "",
   description: "",
   clusterType: "standard",
-  environment: "prod"
+  environment: "production"
 });
 
 const basicSnapshot = ref<BasicInfoForm>({
@@ -192,7 +209,29 @@ const basicSnapshot = ref<BasicInfoForm>({
   uuid: "",
   description: "",
   clusterType: "standard",
-  environment: "prod"
+  environment: "production"
+});
+
+const authForm = ref<AuthConfigForm>({
+  authType: "kubeconfig",
+  apiServerHost: "",
+  kubeFile: "",
+  token: "",
+  caCert: "",
+  clientCert: "",
+  clientKey: "",
+  insecureSkipVerify: 0
+});
+
+const authSnapshot = ref<AuthConfigForm>({
+  authType: "kubeconfig",
+  apiServerHost: "",
+  kubeFile: "",
+  token: "",
+  caCert: "",
+  clientCert: "",
+  clientKey: "",
+  insecureSkipVerify: 0
 });
 
 const currentTabMeta = computed(() => {
@@ -200,9 +239,10 @@ const currentTabMeta = computed(() => {
 });
 
 function formatEnvironment(environment: string): string {
-  if (environment === "prod") return "生产环境";
-  if (environment === "staging") return "测试环境";
-  if (environment === "edge") return "边缘环境";
+  if (environment === "production" || environment === "prod") return "生产环境";
+  if (environment === "staging") return "预发环境";
+  if (environment === "testing") return "测试环境";
+  if (environment === "development") return "开发环境";
   return environment || "未知";
 }
 
@@ -240,16 +280,125 @@ function appendLog(action: string, result: "成功" | "失败", detail: string):
   });
 }
 
-function resetBasicForm(detail: Cluster): void {
+function normalizeText(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function inferApiServerFromKubeconfig(kubeFile: string): string | undefined {
+  const matched = kubeFile.match(/^\s*server:\s*("?)(https?:\/\/[^\s"']+)\1\s*$/m);
+  if (!matched?.[2]) {
+    return undefined;
+  }
+  return matched[2].trim();
+}
+
+function resolveApiServerHost(authType: string, apiServerHost: string): string | undefined {
+  const trimmed = apiServerHost.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  if (authType === "kubeconfig") {
+    return inferApiServerFromKubeconfig(authForm.value.kubeFile);
+  }
+  if (authType === "incluster") {
+    return INCLUSTER_DEFAULT_API_SERVER;
+  }
+  return undefined;
+}
+
+function normalizeEnvironmentValue(environment: string): string {
+  if (!environment) {
+    return "production";
+  }
+  if (environment === "prod") {
+    return "production";
+  }
+  return environment;
+}
+
+function resetBasicForm(detail: ClusterDetail): void {
   const draft: BasicInfoForm = {
     name: detail.name || "",
     uuid: detail.uuid || "",
-    description: "",
+    description: detail.description || "",
     clusterType: detail.clusterType || "standard",
-    environment: detail.environment || "prod"
+    environment: normalizeEnvironmentValue(detail.environment)
   };
   basicForm.value = draft;
   basicSnapshot.value = { ...draft };
+}
+
+function resetAuthForm(authInfo?: ClusterAuthInfo | null): void {
+  const draft: AuthConfigForm = {
+    authType: authInfo?.authType || "kubeconfig",
+    apiServerHost: authInfo?.apiServerHost || "",
+    kubeFile: authInfo?.kubeFile || "",
+    token: authInfo?.token || "",
+    caCert: authInfo?.caCert || "",
+    clientCert: authInfo?.clientCert || "",
+    clientKey: authInfo?.clientKey || "",
+    insecureSkipVerify: authInfo?.insecureSkipVerify ?? 0
+  };
+  authForm.value = draft;
+  authSnapshot.value = { ...draft };
+}
+
+function validateBasicForm(): boolean {
+  if (!basicForm.value.name.trim()) {
+    errorMsg.value = "集群名称不能为空";
+    return false;
+  }
+  if (basicForm.value.name.trim().length < 2) {
+    errorMsg.value = "集群名称长度至少 2 个字符";
+    return false;
+  }
+  return true;
+}
+
+function validateAuthForm(): boolean {
+  const authType = authForm.value.authType;
+  if (!authType) {
+    errorMsg.value = "请选择认证方式";
+    return false;
+  }
+  if (authType === "kubeconfig" && !authForm.value.kubeFile.trim()) {
+    errorMsg.value = "KubeConfig 模式下请填写 kubeconfig 内容";
+    return false;
+  }
+  if (authType === "kubeconfig") {
+    const inferredServer = resolveApiServerHost(authType, authForm.value.apiServerHost);
+    if (!inferredServer) {
+      errorMsg.value =
+        "KubeConfig 中未识别到 API Server(server:)；请补充正确 kubeconfig 或填写 API Server 地址";
+      return false;
+    }
+  }
+  if (authType === "token") {
+    if (!authForm.value.apiServerHost.trim()) {
+      errorMsg.value = "Token 模式下请填写 API Server 地址";
+      return false;
+    }
+    if (!authForm.value.token.trim()) {
+      errorMsg.value = "Token 模式下请填写 Bearer Token";
+      return false;
+    }
+  }
+  if (authType === "certificate") {
+    if (!authForm.value.apiServerHost.trim()) {
+      errorMsg.value = "证书模式下请填写 API Server 地址";
+      return false;
+    }
+    if (
+      !authForm.value.caCert.trim() ||
+      !authForm.value.clientCert.trim() ||
+      !authForm.value.clientKey.trim()
+    ) {
+      errorMsg.value = "证书模式下需要填写 CA 证书、客户端证书、客户端密钥";
+      return false;
+    }
+  }
+  return true;
 }
 
 async function fetchClusterDetail(): Promise<void> {
@@ -261,6 +410,9 @@ async function fetchClusterDetail(): Promise<void> {
     const detail = await getClusterDetailApi(props.clusterId);
     clusterDetail.value = detail;
     resetBasicForm(detail);
+
+    const authInfo = await getClusterAuthInfoApi(detail.id).catch(() => null);
+    resetAuthForm(authInfo);
 
     if (!detail.uuid) {
       nodes.value = [];
@@ -332,8 +484,8 @@ async function syncCurrentCluster(): Promise<void> {
   noticeMsg.value = "";
   errorMsg.value = "";
   try {
-    const res = await syncClusterApi(clusterDetail.value.id);
-    appendLog("同步集群", "成功", `source=${res.source}, nodes=${res.nodeCount}`);
+    const message = await syncClusterApi(clusterDetail.value.id);
+    appendLog("同步集群", "成功", message || "同步任务已提交");
     await fetchClusterDetail();
     if (clusterDetail.value?.uuid && activeTab.value === "resources") {
       await fetchMonitorMetrics(clusterDetail.value.uuid, true);
@@ -350,25 +502,69 @@ async function syncCurrentCluster(): Promise<void> {
 async function saveCurrentTab(): Promise<void> {
   saving.value = true;
   noticeMsg.value = "";
+  errorMsg.value = "";
   try {
-    await new Promise((resolve) => setTimeout(resolve, 220));
     if (activeTab.value === "basic") {
-      if (clusterDetail.value) {
-        clusterDetail.value = {
-          ...clusterDetail.value,
-          name: basicForm.value.name,
-          clusterType: basicForm.value.clusterType,
-          environment: basicForm.value.environment
-        };
+      if (!clusterDetail.value) {
+        errorMsg.value = "未找到集群详情";
+        appendLog("保存基本信息", "失败", errorMsg.value);
+        return;
       }
+      if (!validateBasicForm()) {
+        appendLog("保存基本信息", "失败", errorMsg.value);
+        return;
+      }
+
+      const message = await updateClusterApi({
+        id: clusterDetail.value.id,
+        name: basicForm.value.name.trim(),
+        description: normalizeText(basicForm.value.description),
+        clusterType: basicForm.value.clusterType as "standard" | "edge" | "serverless",
+        environment: normalizeEnvironmentValue(basicForm.value.environment)
+      });
+
+      await fetchClusterDetail();
       basicSnapshot.value = { ...basicForm.value };
-      noticeMsg.value = "当前版本暂未接入保存 API，已本地暂存变更";
-      appendLog("保存基本信息", "成功", "本地暂存");
+      noticeMsg.value = message || "基本信息保存成功";
+      appendLog("保存基本信息", "成功", message || "保存成功");
+      return;
+    }
+
+    if (activeTab.value === "auth") {
+      if (!clusterDetail.value) {
+        errorMsg.value = "未找到集群详情";
+        appendLog("保存认证配置", "失败", errorMsg.value);
+        return;
+      }
+      if (!validateAuthForm()) {
+        appendLog("保存认证配置", "失败", errorMsg.value);
+        return;
+      }
+
+      const message = await updateClusterAuthInfoApi({
+        id: clusterDetail.value.id,
+        authType: authForm.value.authType as "kubeconfig" | "token" | "certificate" | "incluster",
+        apiServerHost: resolveApiServerHost(authForm.value.authType, authForm.value.apiServerHost),
+        kubeFile: normalizeText(authForm.value.kubeFile),
+        token: normalizeText(authForm.value.token),
+        caCert: normalizeText(authForm.value.caCert),
+        clientCert: normalizeText(authForm.value.clientCert),
+        clientKey: normalizeText(authForm.value.clientKey),
+        insecureSkipVerify: authForm.value.insecureSkipVerify
+      });
+
+      await fetchClusterDetail();
+      authSnapshot.value = { ...authForm.value };
+      noticeMsg.value = message || "认证配置保存成功";
+      appendLog("保存认证配置", "成功", message || "保存成功");
       return;
     }
 
     noticeMsg.value = "当前标签页为只读展示";
     appendLog(`保存${currentTabMeta.value.label}`, "成功", "只读模式");
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : "保存失败";
+    appendLog(`保存${currentTabMeta.value.label}`, "失败", errorMsg.value);
   } finally {
     saving.value = false;
   }
@@ -379,6 +575,12 @@ function cancelCurrentTab(): void {
     basicForm.value = { ...basicSnapshot.value };
     noticeMsg.value = "已回滚基本信息草稿";
     appendLog("取消修改", "成功", "基本信息已回滚");
+    return;
+  }
+  if (activeTab.value === "auth") {
+    authForm.value = { ...authSnapshot.value };
+    noticeMsg.value = "已回滚认证配置草稿";
+    appendLog("取消修改", "成功", "认证配置已回滚");
     return;
   }
   noticeMsg.value = "当前标签页没有可回滚的编辑项";
@@ -394,6 +596,7 @@ watch(
     if (!id || id <= 0) {
       clusterDetail.value = null;
       nodes.value = [];
+      resetAuthForm(null);
       return;
     }
     await fetchClusterDetail();

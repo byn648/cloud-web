@@ -20,7 +20,7 @@
 
         <label class="field">
           <span>Password</span>
-          <input v-model="form.password" type="password" autocomplete="current-password" placeholder="••••••••" required />
+          <input v-model.trim="form.password" type="password" autocomplete="current-password" placeholder="••••••••" required />
         </label>
 
         <button class="submit" :disabled="loading">
@@ -48,8 +48,8 @@ const router = useRouter();
 const route = useRoute();
 
 const form = reactive({
-  username: "super_admin",
-  password: "admin123"
+  username: "",
+  password: ""
 });
 
 const loading = ref(false);

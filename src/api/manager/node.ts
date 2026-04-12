@@ -1,3 +1,5 @@
+import { buildQuery, parseNumber, parseString, requestJson } from "../shared";
+
 const NODE_BASE_PATH = "/manager/v1/node";
 
 export interface ClusterNodeInfo {
@@ -59,38 +61,82 @@ export interface SearchClusterNodeResponse {
   total: number;
 }
 
-function toQueryString(params: Record<string, string>): string {
-  const query = new URLSearchParams(params);
-  return query.size > 0 ? `?${query.toString()}` : "";
+function normalizeNodeInfo(payload: unknown): ClusterNodeInfo {
+  const item = (payload ?? {}) as Record<string, unknown>;
+
+  return {
+    id: parseNumber(item.id),
+    clusterUuid: parseString(item.clusterUuid),
+    nodeName: parseString(item.nodeName),
+    nodeIp: parseString(item.nodeIp),
+    nodeStatus: parseString(item.nodeStatus),
+    cpuUsge: parseNumber(item.cpuUsge),
+    memoryUsge: parseNumber(item.memoryUsge),
+    podTotal: parseNumber(item.podTotal),
+    podUsge: parseNumber(item.podUsge),
+    createdAt: parseNumber(item.createdAt),
+    updatedAt: parseNumber(item.updatedAt),
+    nodeRole: parseString(item.nodeRole),
+    architecture: parseString(item.architecture),
+    unschedulable: parseNumber(item.unschedulable)
+  };
+}
+
+function normalizeNodeDetail(payload: unknown): ClusterNodeDetail {
+  const item = (payload ?? {}) as Record<string, unknown>;
+
+  return {
+    id: parseNumber(item.id),
+    clusterUuid: parseString(item.clusterUuid),
+    nodeUuid: parseString(item.nodeUuid),
+    name: parseString(item.name),
+    hostname: parseString(item.hostname),
+    roles: parseString(item.roles),
+    osImage: parseString(item.osImage),
+    nodeIp: parseString(item.nodeIp),
+    kernelVersion: parseString(item.kernelVersion),
+    operatingSystem: parseString(item.operatingSystem),
+    architecture: parseString(item.architecture),
+    cpu: parseNumber(item.cpu),
+    memory: parseNumber(item.memory),
+    pods: parseNumber(item.pods),
+    isGpu: parseNumber(item.isGpu),
+    runtime: parseString(item.runtime),
+    joinAt: parseNumber(item.joinAt),
+    unschedulable: parseNumber(item.unschedulable),
+    kubeletVersion: parseString(item.kubeletVersion),
+    status: parseString(item.status),
+    podCidr: parseString(item.podCidr),
+    podCidrs: parseString(item.podCidrs),
+    createdBy: parseString(item.createdBy),
+    updatedBy: parseString(item.updatedBy),
+    createdAt: parseNumber(item.createdAt),
+    updatedAt: parseNumber(item.updatedAt)
+  };
 }
 
 export async function getNodeListApi(params: SearchClusterNodeRequest): Promise<SearchClusterNodeResponse> {
-  const query = toQueryString({
-    page: String(params.page ?? 1),
-    pageSize: String(params.pageSize ?? 10),
+  const query = buildQuery({
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? 10,
     orderField: params.orderField ?? "id",
-    isAsc: String(params.isAsc ?? false),
+    isAsc: params.isAsc ?? false,
     clusterUuid: params.clusterUuid
   });
-  const response = await fetch(`${NODE_BASE_PATH}${query}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" }
+
+  const response = await requestJson<{ items?: unknown[]; total?: unknown }>(`${NODE_BASE_PATH}${query}`, {
+    method: "GET"
   });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Get node list failed with status ${response.status}`);
-  }
-  return (await response.json()) as SearchClusterNodeResponse;
+
+  return {
+    items: Array.isArray(response.items) ? response.items.map((item) => normalizeNodeInfo(item)) : [],
+    total: parseNumber(response.total)
+  };
 }
 
 export async function getNodeDetailApi(id: number): Promise<ClusterNodeDetail> {
-  const response = await fetch(`${NODE_BASE_PATH}/${id}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" }
+  const response = await requestJson<unknown>(`${NODE_BASE_PATH}/${id}`, {
+    method: "GET"
   });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Get node detail failed with status ${response.status}`);
-  }
-  return (await response.json()) as ClusterNodeDetail;
+  return normalizeNodeDetail(response);
 }

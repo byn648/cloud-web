@@ -1,4 +1,79 @@
+import { buildQuery, parseNumber, parseString, requestJson } from "../shared";
+
 const PROJECT_BASE_PATH = "/manager/v1/project";
+
+const PROJECT_NUMBER_FIELDS = [
+  "id",
+  "isSystem",
+  "createdAt",
+  "updatedAt",
+  "adminCount",
+  "resourceCount"
+] as const;
+
+const PROJECT_ADMIN_NUMBER_FIELDS = ["id", "projectId", "userId", "createdAt"] as const;
+
+const PROJECT_CLUSTER_NUMBER_FIELDS = [
+  "id",
+  "projectId",
+  "cpuLimit",
+  "cpuOvercommitRatio",
+  "cpuCapacity",
+  "cpuAllocated",
+  "memLimit",
+  "memOvercommitRatio",
+  "memCapacity",
+  "memAllocated",
+  "storageLimit",
+  "storageAllocated",
+  "gpuLimit",
+  "gpuOvercommitRatio",
+  "gpuCapacity",
+  "gpuAllocated",
+  "podsLimit",
+  "podsAllocated",
+  "configmapLimit",
+  "configmapAllocated",
+  "secretLimit",
+  "secretAllocated",
+  "pvcLimit",
+  "pvcAllocated",
+  "ephemeralStorageLimit",
+  "ephemeralStorageAllocated",
+  "serviceLimit",
+  "serviceAllocated",
+  "loadbalancersLimit",
+  "loadbalancersAllocated",
+  "nodeportsLimit",
+  "nodeportsAllocated",
+  "deploymentsLimit",
+  "deploymentsAllocated",
+  "jobsLimit",
+  "jobsAllocated",
+  "cronjobsLimit",
+  "cronjobsAllocated",
+  "daemonsetsLimit",
+  "daemonsetsAllocated",
+  "statefulsetsLimit",
+  "statefulsetsAllocated",
+  "ingressesLimit",
+  "ingressesAllocated",
+  "createdAt",
+  "updatedAt"
+] as const;
+
+const PROJECT_WORKSPACE_NUMBER_FIELDS = [
+  "id",
+  "projectClusterId",
+  "projectId",
+  "cpuAllocated",
+  "memAllocated",
+  "storageAllocated",
+  "gpuAllocated",
+  "podsAllocated",
+  "createdAt",
+  "updatedAt"
+] as const;
 
 export interface Project {
   id: number;
@@ -38,7 +113,6 @@ export interface UpdateProjectRequest {
 }
 
 export interface GetProjectsByUserRequest {
-  userId?: number;
   name?: string;
 }
 
@@ -103,6 +177,7 @@ export interface ProjectCluster {
   ingressesAllocated: number;
   createdBy: string;
   updatedBy: string;
+  status?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -110,6 +185,8 @@ export interface ProjectCluster {
 export interface AddProjectClusterRequest {
   clusterUuid: string;
   projectId: number;
+  priceConfigId: number;
+  billingStartTime?: number;
   cpuLimit: number;
   cpuOvercommitRatio?: number;
   cpuCapacity?: number;
@@ -190,24 +267,25 @@ export interface ProjectWorkspace {
 
 export interface AddProjectWorkspaceRequest {
   projectClusterId: number;
+  clusterUuid: string;
   name: string;
   namespace: string;
   description?: string;
-  cpuAllocated?: number;
-  memAllocated?: number;
+  cpuAllocated: number;
+  memAllocated: number;
   storageAllocated?: number;
   gpuAllocated?: number;
-  podsAllocated?: number;
+  podsAllocated: number;
 }
 
 export interface UpdateProjectWorkspaceRequest {
   name: string;
   description?: string;
-  cpuAllocated?: number;
-  memAllocated?: number;
+  cpuAllocated: number;
+  memAllocated: number;
   storageAllocated?: number;
   gpuAllocated?: number;
-  podsAllocated?: number;
+  podsAllocated: number;
 }
 
 export interface SearchProjectWorkspaceRequest {
@@ -216,34 +294,168 @@ export interface SearchProjectWorkspaceRequest {
   namespace?: string;
 }
 
-function toQueryString(params: Record<string, string | undefined>): string {
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== "") query.set(key, value);
+function normalizeNumberFields<T extends Record<string, unknown>, K extends readonly string[]>(
+  payload: unknown,
+  numericFields: K
+): T {
+  const item = { ...((payload ?? {}) as Record<string, unknown>) };
+
+  numericFields.forEach((field) => {
+    item[field] = parseNumber(item[field]);
   });
-  return query.size > 0 ? `?${query.toString()}` : "";
+
+  return item as T;
 }
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    ...init
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with status ${response.status}`);
+function normalizeProject(payload: unknown): Project {
+  const item = normalizeNumberFields<Record<string, unknown>, typeof PROJECT_NUMBER_FIELDS>(
+    payload,
+    PROJECT_NUMBER_FIELDS
+  );
+
+  return {
+    id: parseNumber(item.id),
+    name: parseString(item.name),
+    uuid: parseString(item.uuid),
+    description: parseString(item.description),
+    isSystem: parseNumber(item.isSystem),
+    createdBy: parseString(item.createdBy),
+    updatedBy: parseString(item.updatedBy),
+    createdAt: parseNumber(item.createdAt),
+    updatedAt: parseNumber(item.updatedAt),
+    adminCount: parseNumber(item.adminCount),
+    resourceCount: parseNumber(item.resourceCount)
+  };
+}
+
+function normalizeProjectAdmin(payload: unknown): ProjectAdmin {
+  const item = normalizeNumberFields<Record<string, unknown>, typeof PROJECT_ADMIN_NUMBER_FIELDS>(
+    payload,
+    PROJECT_ADMIN_NUMBER_FIELDS
+  );
+
+  return {
+    id: parseNumber(item.id),
+    projectId: parseNumber(item.projectId),
+    userId: parseNumber(item.userId),
+    createdAt: parseNumber(item.createdAt)
+  };
+}
+
+function normalizeProjectCluster(payload: unknown): ProjectCluster {
+  const item = normalizeNumberFields<Record<string, unknown>, typeof PROJECT_CLUSTER_NUMBER_FIELDS>(
+    payload,
+    PROJECT_CLUSTER_NUMBER_FIELDS
+  );
+
+  return {
+    id: parseNumber(item.id),
+    clusterUuid: parseString(item.clusterUuid),
+    clusterName: parseString(item.clusterName),
+    projectId: parseNumber(item.projectId),
+    cpuLimit: parseNumber(item.cpuLimit),
+    cpuOvercommitRatio: parseNumber(item.cpuOvercommitRatio, 1),
+    cpuCapacity: parseNumber(item.cpuCapacity),
+    cpuAllocated: parseNumber(item.cpuAllocated),
+    memLimit: parseNumber(item.memLimit),
+    memOvercommitRatio: parseNumber(item.memOvercommitRatio, 1),
+    memCapacity: parseNumber(item.memCapacity),
+    memAllocated: parseNumber(item.memAllocated),
+    storageLimit: parseNumber(item.storageLimit),
+    storageAllocated: parseNumber(item.storageAllocated),
+    gpuLimit: parseNumber(item.gpuLimit),
+    gpuOvercommitRatio: parseNumber(item.gpuOvercommitRatio, 1),
+    gpuCapacity: parseNumber(item.gpuCapacity),
+    gpuAllocated: parseNumber(item.gpuAllocated),
+    podsLimit: parseNumber(item.podsLimit),
+    podsAllocated: parseNumber(item.podsAllocated),
+    configmapLimit: parseNumber(item.configmapLimit),
+    configmapAllocated: parseNumber(item.configmapAllocated),
+    secretLimit: parseNumber(item.secretLimit),
+    secretAllocated: parseNumber(item.secretAllocated),
+    pvcLimit: parseNumber(item.pvcLimit),
+    pvcAllocated: parseNumber(item.pvcAllocated),
+    ephemeralStorageLimit: parseNumber(item.ephemeralStorageLimit),
+    ephemeralStorageAllocated: parseNumber(item.ephemeralStorageAllocated),
+    serviceLimit: parseNumber(item.serviceLimit),
+    serviceAllocated: parseNumber(item.serviceAllocated),
+    loadbalancersLimit: parseNumber(item.loadbalancersLimit),
+    loadbalancersAllocated: parseNumber(item.loadbalancersAllocated),
+    nodeportsLimit: parseNumber(item.nodeportsLimit),
+    nodeportsAllocated: parseNumber(item.nodeportsAllocated),
+    deploymentsLimit: parseNumber(item.deploymentsLimit),
+    deploymentsAllocated: parseNumber(item.deploymentsAllocated),
+    jobsLimit: parseNumber(item.jobsLimit),
+    jobsAllocated: parseNumber(item.jobsAllocated),
+    cronjobsLimit: parseNumber(item.cronjobsLimit),
+    cronjobsAllocated: parseNumber(item.cronjobsAllocated),
+    daemonsetsLimit: parseNumber(item.daemonsetsLimit),
+    daemonsetsAllocated: parseNumber(item.daemonsetsAllocated),
+    statefulsetsLimit: parseNumber(item.statefulsetsLimit),
+    statefulsetsAllocated: parseNumber(item.statefulsetsAllocated),
+    ingressesLimit: parseNumber(item.ingressesLimit),
+    ingressesAllocated: parseNumber(item.ingressesAllocated),
+    createdBy: parseString(item.createdBy),
+    updatedBy: parseString(item.updatedBy),
+    status: parseString(item.status),
+    createdAt: parseNumber(item.createdAt),
+    updatedAt: parseNumber(item.updatedAt)
+  };
+}
+
+function normalizeProjectWorkspace(payload: unknown): ProjectWorkspace {
+  const item = normalizeNumberFields<Record<string, unknown>, typeof PROJECT_WORKSPACE_NUMBER_FIELDS>(
+    payload,
+    PROJECT_WORKSPACE_NUMBER_FIELDS
+  );
+
+  return {
+    id: parseNumber(item.id),
+    projectClusterId: parseNumber(item.projectClusterId),
+    projectId: parseNumber(item.projectId),
+    clusterUuid: parseString(item.clusterUuid),
+    clusterName: parseString(item.clusterName),
+    name: parseString(item.name),
+    namespace: parseString(item.namespace),
+    description: parseString(item.description),
+    cpuAllocated: parseNumber(item.cpuAllocated),
+    memAllocated: parseNumber(item.memAllocated),
+    storageAllocated: parseNumber(item.storageAllocated),
+    gpuAllocated: parseNumber(item.gpuAllocated),
+    podsAllocated: parseNumber(item.podsAllocated),
+    createdBy: parseString(item.createdBy),
+    updatedBy: parseString(item.updatedBy),
+    createdAt: parseNumber(item.createdAt),
+    updatedAt: parseNumber(item.updatedAt)
+  };
+}
+
+function toQuantity(value: number | undefined): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
   }
-  return (await response.json()) as T;
+  if (!Number.isFinite(value)) {
+    return undefined;
+  }
+  return String(value);
 }
 
 export async function searchProjectApi(params: SearchProjectRequest): Promise<SearchProjectResponse> {
-  const query = toQueryString({
-    page: String(params.page ?? 1),
-    pageSize: String(params.pageSize ?? 10),
+  const query = buildQuery({
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? 10,
     name: params.name?.trim() || undefined,
     uuid: params.uuid?.trim() || undefined
   });
-  return requestJson<SearchProjectResponse>(`${PROJECT_BASE_PATH}/search${query}`, { method: "GET" });
+
+  const response = await requestJson<{ items?: unknown[]; total?: unknown }>(`${PROJECT_BASE_PATH}/search${query}`, {
+    method: "GET"
+  });
+
+  return {
+    items: Array.isArray(response.items) ? response.items.map((item) => normalizeProject(item)) : [],
+    total: parseNumber(response.total)
+  };
 }
 
 export async function addProjectApi(data: AddProjectRequest): Promise<string> {
@@ -265,15 +477,17 @@ export async function deleteProjectApi(id: number): Promise<string> {
 }
 
 export async function getProjectApi(id: number): Promise<Project> {
-  return requestJson<Project>(`${PROJECT_BASE_PATH}/${id}`, { method: "GET" });
+  const response = await requestJson<unknown>(`${PROJECT_BASE_PATH}/${id}`, { method: "GET" });
+  return normalizeProject(response);
 }
 
 export async function getProjectsByUserApi(params?: GetProjectsByUserRequest): Promise<Project[]> {
-  const query = toQueryString({
-    userId: params?.userId ? String(params.userId) : undefined,
+  const query = buildQuery({
     name: params?.name?.trim() || undefined
   });
-  return requestJson<Project[]>(`${PROJECT_BASE_PATH}/user${query}`, { method: "GET" });
+
+  const response = await requestJson<unknown[]>(`${PROJECT_BASE_PATH}/user${query}`, { method: "GET" });
+  return Array.isArray(response) ? response.map((item) => normalizeProject(item)) : [];
 }
 
 export async function addProjectAdminApi(data: AddProjectAdminRequest): Promise<string> {
@@ -284,21 +498,76 @@ export async function addProjectAdminApi(data: AddProjectAdminRequest): Promise<
 }
 
 export async function getProjectAdminsApi(projectId: number): Promise<ProjectAdmin[]> {
-  const query = toQueryString({ projectId: String(projectId) });
-  return requestJson<ProjectAdmin[]>(`${PROJECT_BASE_PATH}/admin/list${query}`, { method: "GET" });
+  const query = buildQuery({ projectId });
+  const response = await requestJson<unknown[]>(`${PROJECT_BASE_PATH}/admin/list${query}`, { method: "GET" });
+  return Array.isArray(response) ? response.map((item) => normalizeProjectAdmin(item)) : [];
 }
 
 export async function addProjectClusterApi(data: AddProjectClusterRequest): Promise<string> {
   return requestJson<string>(`${PROJECT_BASE_PATH}/cluster`, {
     method: "POST",
-    body: JSON.stringify(data)
+    body: JSON.stringify({
+      clusterUuid: data.clusterUuid,
+      projectId: data.projectId,
+      priceConfigId: data.priceConfigId,
+      billingStartTime: data.billingStartTime,
+      cpuLimit: toQuantity(data.cpuLimit),
+      cpuOvercommitRatio: data.cpuOvercommitRatio,
+      cpuCapacity: toQuantity(data.cpuCapacity),
+      memLimit: toQuantity(data.memLimit),
+      memOvercommitRatio: data.memOvercommitRatio,
+      memCapacity: toQuantity(data.memCapacity),
+      storageLimit: toQuantity(data.storageLimit),
+      gpuLimit: toQuantity(data.gpuLimit),
+      gpuOvercommitRatio: data.gpuOvercommitRatio,
+      gpuCapacity: toQuantity(data.gpuCapacity),
+      podsLimit: data.podsLimit,
+      configmapLimit: data.configmapLimit,
+      secretLimit: data.secretLimit,
+      pvcLimit: data.pvcLimit,
+      ephemeralStorageLimit: toQuantity(data.ephemeralStorageLimit),
+      serviceLimit: data.serviceLimit,
+      loadbalancersLimit: data.loadbalancersLimit,
+      nodeportsLimit: data.nodeportsLimit,
+      deploymentsLimit: data.deploymentsLimit,
+      jobsLimit: data.jobsLimit,
+      cronjobsLimit: data.cronjobsLimit,
+      daemonsetsLimit: data.daemonsetsLimit,
+      statefulsetsLimit: data.statefulsetsLimit,
+      ingressesLimit: data.ingressesLimit
+    })
   });
 }
 
 export async function updateProjectClusterApi(id: number, data: UpdateProjectClusterRequest): Promise<string> {
   return requestJson<string>(`${PROJECT_BASE_PATH}/cluster/${id}`, {
     method: "PUT",
-    body: JSON.stringify(data)
+    body: JSON.stringify({
+      cpuLimit: toQuantity(data.cpuLimit),
+      cpuOvercommitRatio: data.cpuOvercommitRatio,
+      cpuCapacity: toQuantity(data.cpuCapacity),
+      memLimit: toQuantity(data.memLimit),
+      memOvercommitRatio: data.memOvercommitRatio,
+      memCapacity: toQuantity(data.memCapacity),
+      storageLimit: toQuantity(data.storageLimit),
+      gpuLimit: toQuantity(data.gpuLimit),
+      gpuOvercommitRatio: data.gpuOvercommitRatio,
+      gpuCapacity: toQuantity(data.gpuCapacity),
+      podsLimit: data.podsLimit,
+      configmapLimit: data.configmapLimit,
+      secretLimit: data.secretLimit,
+      pvcLimit: data.pvcLimit,
+      ephemeralStorageLimit: toQuantity(data.ephemeralStorageLimit),
+      serviceLimit: data.serviceLimit,
+      loadbalancersLimit: data.loadbalancersLimit,
+      nodeportsLimit: data.nodeportsLimit,
+      deploymentsLimit: data.deploymentsLimit,
+      jobsLimit: data.jobsLimit,
+      cronjobsLimit: data.cronjobsLimit,
+      daemonsetsLimit: data.daemonsetsLimit,
+      statefulsetsLimit: data.statefulsetsLimit,
+      ingressesLimit: data.ingressesLimit
+    })
   });
 }
 
@@ -307,28 +576,50 @@ export async function deleteProjectClusterApi(id: number): Promise<string> {
 }
 
 export async function getProjectClusterApi(id: number): Promise<ProjectCluster> {
-  return requestJson<ProjectCluster>(`${PROJECT_BASE_PATH}/cluster/${id}`, { method: "GET" });
+  const response = await requestJson<unknown>(`${PROJECT_BASE_PATH}/cluster/${id}`, { method: "GET" });
+  return normalizeProjectCluster(response);
 }
 
 export async function searchProjectClusterApi(params: SearchProjectClusterRequest): Promise<ProjectCluster[]> {
-  const query = toQueryString({
-    projectId: String(params.projectId),
+  const query = buildQuery({
+    projectId: params.projectId,
     clusterUuid: params.clusterUuid?.trim() || undefined
   });
-  return requestJson<ProjectCluster[]>(`${PROJECT_BASE_PATH}/cluster/search${query}`, { method: "GET" });
+
+  const response = await requestJson<unknown[]>(`${PROJECT_BASE_PATH}/cluster/search${query}`, { method: "GET" });
+  return Array.isArray(response) ? response.map((item) => normalizeProjectCluster(item)) : [];
 }
 
 export async function addProjectWorkspaceApi(data: AddProjectWorkspaceRequest): Promise<string> {
   return requestJson<string>(`${PROJECT_BASE_PATH}/workspace`, {
     method: "POST",
-    body: JSON.stringify(data)
+    body: JSON.stringify({
+      projectClusterId: data.projectClusterId,
+      clusterUuid: data.clusterUuid,
+      name: data.name,
+      namespace: data.namespace,
+      description: data.description,
+      cpuAllocated: toQuantity(data.cpuAllocated),
+      memAllocated: toQuantity(data.memAllocated),
+      storageAllocated: toQuantity(data.storageAllocated),
+      gpuAllocated: toQuantity(data.gpuAllocated),
+      podsAllocated: data.podsAllocated
+    })
   });
 }
 
 export async function updateProjectWorkspaceApi(id: number, data: UpdateProjectWorkspaceRequest): Promise<string> {
   return requestJson<string>(`${PROJECT_BASE_PATH}/workspace/${id}`, {
     method: "PUT",
-    body: JSON.stringify(data)
+    body: JSON.stringify({
+      name: data.name,
+      description: data.description,
+      cpuAllocated: toQuantity(data.cpuAllocated),
+      memAllocated: toQuantity(data.memAllocated),
+      storageAllocated: toQuantity(data.storageAllocated),
+      gpuAllocated: toQuantity(data.gpuAllocated),
+      podsAllocated: data.podsAllocated
+    })
   });
 }
 
@@ -337,18 +628,22 @@ export async function deleteProjectWorkspaceApi(id: number): Promise<string> {
 }
 
 export async function getProjectWorkspaceApi(id: number): Promise<ProjectWorkspace> {
-  return requestJson<ProjectWorkspace>(`${PROJECT_BASE_PATH}/workspace/${id}`, { method: "GET" });
+  const response = await requestJson<unknown>(`${PROJECT_BASE_PATH}/workspace/${id}`, { method: "GET" });
+  return normalizeProjectWorkspace(response);
 }
 
 export async function searchProjectWorkspaceApi(
   params: SearchProjectWorkspaceRequest
 ): Promise<ProjectWorkspace[]> {
-  const query = toQueryString({
-    projectClusterId: String(params.projectClusterId),
+  const query = buildQuery({
+    projectClusterId: params.projectClusterId,
     name: params.name?.trim() || undefined,
     namespace: params.namespace?.trim() || undefined
   });
-  return requestJson<ProjectWorkspace[]>(`${PROJECT_BASE_PATH}/workspace/search${query}`, {
+
+  const response = await requestJson<unknown[]>(`${PROJECT_BASE_PATH}/workspace/search${query}`, {
     method: "GET"
   });
+
+  return Array.isArray(response) ? response.map((item) => normalizeProjectWorkspace(item)) : [];
 }

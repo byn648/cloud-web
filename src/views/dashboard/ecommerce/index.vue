@@ -106,7 +106,12 @@
       </nav>
 
       <div class="content-scroll-area">
-        <ClusterListPage v-if="showClusterListPage" @open-console="openClusterConsole" />
+        <ClusterListPage v-if="showClusterListPage" @open-console="openClusterConsole" @open-add="openClusterAdd" />
+        <ClusterAddPage
+          v-else-if="showClusterAddPage"
+          @back="backToClusterList"
+          @created="handleClusterCreated"
+        />
         <ClusterManagementPage
           v-else-if="showClusterManagementPage"
           :cluster-id="consoleClusterId"
@@ -117,6 +122,7 @@
         <ProjectManagementPage v-else-if="showProjectManagementPage" />
         <ProjectResourcePage v-else-if="showProjectResourcePage" />
         <ProjectWorkspacePage v-else-if="showProjectWorkspacePage" />
+        <UserManagementPage v-else-if="showUserManagementPage" />
         
         <template v-else>
           <section class="hero-center-stage">
@@ -175,12 +181,14 @@ import TotalOrderVolume from "./modules/total-order-volume.vue";
 import TotalProducts from "./modules/total-products.vue";
 import TransactionList from "./modules/transaction-list.vue";
 import ClusterListPage from "../../cluster/cluster/index.vue";
+import ClusterAddPage from "../../cluster/cluster/add/index.vue";
 import ClusterManagementPage from "../../cluster/cluster/management/index.vue";
 import NodeListPage from "../../cluster/node/index.vue";
 import DeviceCenterPage from "../../device/center/index.vue";
 import ProjectManagementPage from "../../project/management/index.vue";
 import ProjectResourcePage from "../../project/resource/index.vue";
 import ProjectWorkspacePage from "../../project/workspace/index.vue";
+import UserManagementPage from "../../system/user/index.vue";
 import { getDashboardOverviewApi } from "../../../api/portal/dashboard";
 import { getClusterDetailApi, searchClusterApi } from "../../../api/manager/cluster";
 import { HOME_PATH } from "../../../router/paths";
@@ -204,6 +212,7 @@ const selectedClusterId = ref<string>("all");
 const selectedClusterUuid = ref<string>("");
 const consoleClusterId = ref<number | null>(null);
 const inClusterManagement = ref(false);
+const inClusterAdding = ref(false);
 const ALL_CLUSTERS_VALUE = "all";
 const showUserMenu = ref(false);
 const avatarDropdownRef = ref<HTMLElement | null>(null);
@@ -278,7 +287,14 @@ const tabs = computed(() => {
 });
 
 const showClusterListPage = computed(
-  () => activeMenu.value === "集群管理" && activeSubMenu.value === "集群管理" && !inClusterManagement.value
+  () =>
+    activeMenu.value === "集群管理" &&
+    activeSubMenu.value === "集群管理" &&
+    !inClusterManagement.value &&
+    !inClusterAdding.value
+);
+const showClusterAddPage = computed(
+  () => activeMenu.value === "集群管理" && activeSubMenu.value === "集群管理" && inClusterAdding.value
 );
 const showClusterManagementPage = computed(
   () => activeMenu.value === "集群管理" && activeSubMenu.value === "集群管理" && inClusterManagement.value
@@ -294,12 +310,16 @@ const showProjectResourcePage = computed(
 const showProjectWorkspacePage = computed(
   () => activeMenu.value === "项目中心" && activeSubMenu.value === "工作空间"
 );
+const showUserManagementPage = computed(
+  () => activeMenu.value === "系统管理" && activeSubMenu.value === "用户管理"
+);
 
 const activeTab = computed({
   get() { return activeSubMenu.value; },
   set(value: string) {
     activeSubMenu.value = value;
     inClusterManagement.value = false;
+    inClusterAdding.value = false;
     navigateByMenu(activeMenu.value, value);
   }
 });
@@ -310,6 +330,7 @@ function isExpanded(menuLabel: string): boolean {
 
 function toggleMenu(menuLabel: string): void {
   inClusterManagement.value = false;
+  inClusterAdding.value = false;
   const willExpand = !isExpanded(menuLabel);
   expandedMenus.value = {}; // 收起其他
   if (willExpand) {
@@ -329,6 +350,7 @@ function selectSubMenu(menuLabel: string, subMenuLabel: string): void {
   activeSubMenu.value = subMenuLabel;
   expandedMenus.value = { [menuLabel]: true };
   inClusterManagement.value = false;
+  inClusterAdding.value = false;
   consoleClusterId.value = null;
   navigateByMenu(menuLabel, subMenuLabel);
 }
@@ -352,20 +374,42 @@ function navigateByMenu(menuLabel: string, subMenuLabel: string): void {
     }
     return;
   }
+  if (menuLabel === "系统管理" && subMenuLabel === "用户管理") {
+    if (route.path !== "/system/user") {
+      void router.push("/system/user");
+    }
+    return;
+  }
 
   if (
     route.path === "/project/management" ||
     route.path === "/project/resource" ||
-    route.path === "/project/workspace"
+    route.path === "/project/workspace" ||
+    route.path === "/system/user"
   ) {
     void router.push(HOME_PATH);
   }
 }
 
 function syncMenuByRoute(path: string): void {
-  if (path !== "/project/management" && path !== "/project/resource" && path !== "/project/workspace") return;
+  if (
+    path !== "/project/management" &&
+    path !== "/project/resource" &&
+    path !== "/project/workspace" &&
+    path !== "/system/user"
+  ) {
+    return;
+  }
   inClusterManagement.value = false;
+  inClusterAdding.value = false;
   consoleClusterId.value = null;
+  if (path === "/system/user") {
+    activeMenu.value = "系统管理";
+    activeSubMenu.value = "用户管理";
+    expandedMenus.value = { "系统管理": true };
+    return;
+  }
+
   activeMenu.value = "项目中心";
   if (path === "/project/resource") {
     activeSubMenu.value = "资源池";
@@ -381,12 +425,31 @@ function openClusterConsole(clusterId: number): void {
   if (!Number.isFinite(clusterId) || clusterId <= 0) return;
   consoleClusterId.value = clusterId;
   inClusterManagement.value = true;
+  inClusterAdding.value = false;
+  activeMenu.value = "集群管理";
+  activeSubMenu.value = "集群管理";
+  expandedMenus.value = { "集群管理": true };
+}
+
+function openClusterAdd(): void {
+  consoleClusterId.value = null;
+  inClusterManagement.value = false;
+  inClusterAdding.value = true;
   activeMenu.value = "集群管理";
   activeSubMenu.value = "集群管理";
   expandedMenus.value = { "集群管理": true };
 }
 
 function backToClusterList(): void {
+  inClusterManagement.value = false;
+  inClusterAdding.value = false;
+  activeMenu.value = "集群管理";
+  activeSubMenu.value = "集群管理";
+  expandedMenus.value = { "集群管理": true };
+}
+
+function handleClusterCreated(): void {
+  inClusterAdding.value = false;
   inClusterManagement.value = false;
   activeMenu.value = "集群管理";
   activeSubMenu.value = "集群管理";
