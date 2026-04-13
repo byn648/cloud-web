@@ -511,30 +511,30 @@ export async function addProjectClusterApi(data: AddProjectClusterRequest): Prom
       projectId: data.projectId,
       priceConfigId: data.priceConfigId,
       billingStartTime: data.billingStartTime,
-      cpuLimit: toQuantity(data.cpuLimit),
-      cpuOvercommitRatio: data.cpuOvercommitRatio,
-      cpuCapacity: toQuantity(data.cpuCapacity),
-      memLimit: toQuantity(data.memLimit),
-      memOvercommitRatio: data.memOvercommitRatio,
-      memCapacity: toQuantity(data.memCapacity),
-      storageLimit: toQuantity(data.storageLimit),
-      gpuLimit: toQuantity(data.gpuLimit),
-      gpuOvercommitRatio: data.gpuOvercommitRatio,
-      gpuCapacity: toQuantity(data.gpuCapacity),
-      podsLimit: data.podsLimit,
-      configmapLimit: data.configmapLimit,
-      secretLimit: data.secretLimit,
-      pvcLimit: data.pvcLimit,
-      ephemeralStorageLimit: toQuantity(data.ephemeralStorageLimit),
-      serviceLimit: data.serviceLimit,
-      loadbalancersLimit: data.loadbalancersLimit,
-      nodeportsLimit: data.nodeportsLimit,
-      deploymentsLimit: data.deploymentsLimit,
-      jobsLimit: data.jobsLimit,
-      cronjobsLimit: data.cronjobsLimit,
-      daemonsetsLimit: data.daemonsetsLimit,
-      statefulsetsLimit: data.statefulsetsLimit,
-      ingressesLimit: data.ingressesLimit
+      cpuLimit: toQuantity(data.cpuLimit ?? 0),
+      cpuOvercommitRatio: data.cpuOvercommitRatio ?? 1,
+      cpuCapacity: toQuantity(data.cpuCapacity ?? 0),
+      memLimit: toQuantity(data.memLimit ?? 0),
+      memOvercommitRatio: data.memOvercommitRatio ?? 1,
+      memCapacity: toQuantity(data.memCapacity ?? 0),
+      storageLimit: toQuantity(data.storageLimit ?? 0),
+      gpuLimit: toQuantity(data.gpuLimit ?? 0),
+      gpuOvercommitRatio: data.gpuOvercommitRatio ?? 1,
+      gpuCapacity: toQuantity(data.gpuCapacity ?? 0),
+      podsLimit: data.podsLimit ?? 0,
+      configmapLimit: data.configmapLimit ?? 0,
+      secretLimit: data.secretLimit ?? 0,
+      pvcLimit: data.pvcLimit ?? 0,
+      ephemeralStorageLimit: toQuantity(data.ephemeralStorageLimit ?? 0),
+      serviceLimit: data.serviceLimit ?? 0,
+      loadbalancersLimit: data.loadbalancersLimit ?? 0,
+      nodeportsLimit: data.nodeportsLimit ?? 0,
+      deploymentsLimit: data.deploymentsLimit ?? 0,
+      jobsLimit: data.jobsLimit ?? 0,
+      cronjobsLimit: data.cronjobsLimit ?? 0,
+      daemonsetsLimit: data.daemonsetsLimit ?? 0,
+      statefulsetsLimit: data.statefulsetsLimit ?? 0,
+      ingressesLimit: data.ingressesLimit ?? 0
     })
   });
 }
@@ -543,30 +543,30 @@ export async function updateProjectClusterApi(id: number, data: UpdateProjectClu
   return requestJson<string>(`${PROJECT_BASE_PATH}/cluster/${id}`, {
     method: "PUT",
     body: JSON.stringify({
-      cpuLimit: toQuantity(data.cpuLimit),
-      cpuOvercommitRatio: data.cpuOvercommitRatio,
-      cpuCapacity: toQuantity(data.cpuCapacity),
-      memLimit: toQuantity(data.memLimit),
-      memOvercommitRatio: data.memOvercommitRatio,
-      memCapacity: toQuantity(data.memCapacity),
-      storageLimit: toQuantity(data.storageLimit),
-      gpuLimit: toQuantity(data.gpuLimit),
-      gpuOvercommitRatio: data.gpuOvercommitRatio,
-      gpuCapacity: toQuantity(data.gpuCapacity),
-      podsLimit: data.podsLimit,
-      configmapLimit: data.configmapLimit,
-      secretLimit: data.secretLimit,
-      pvcLimit: data.pvcLimit,
-      ephemeralStorageLimit: toQuantity(data.ephemeralStorageLimit),
-      serviceLimit: data.serviceLimit,
-      loadbalancersLimit: data.loadbalancersLimit,
-      nodeportsLimit: data.nodeportsLimit,
-      deploymentsLimit: data.deploymentsLimit,
-      jobsLimit: data.jobsLimit,
-      cronjobsLimit: data.cronjobsLimit,
-      daemonsetsLimit: data.daemonsetsLimit,
-      statefulsetsLimit: data.statefulsetsLimit,
-      ingressesLimit: data.ingressesLimit
+      cpuLimit: toQuantity(data.cpuLimit ?? 0),
+      cpuOvercommitRatio: data.cpuOvercommitRatio ?? 1,
+      cpuCapacity: toQuantity(data.cpuCapacity ?? 0),
+      memLimit: toQuantity(data.memLimit ?? 0),
+      memOvercommitRatio: data.memOvercommitRatio ?? 1,
+      memCapacity: toQuantity(data.memCapacity ?? 0),
+      storageLimit: toQuantity(data.storageLimit ?? 0),
+      gpuLimit: toQuantity(data.gpuLimit ?? 0),
+      gpuOvercommitRatio: data.gpuOvercommitRatio ?? 1,
+      gpuCapacity: toQuantity(data.gpuCapacity ?? 0),
+      podsLimit: data.podsLimit ?? 0,
+      configmapLimit: data.configmapLimit ?? 0,
+      secretLimit: data.secretLimit ?? 0,
+      pvcLimit: data.pvcLimit ?? 0,
+      ephemeralStorageLimit: toQuantity(data.ephemeralStorageLimit ?? 0),
+      serviceLimit: data.serviceLimit ?? 0,
+      loadbalancersLimit: data.loadbalancersLimit ?? 0,
+      nodeportsLimit: data.nodeportsLimit ?? 0,
+      deploymentsLimit: data.deploymentsLimit ?? 0,
+      jobsLimit: data.jobsLimit ?? 0,
+      cronjobsLimit: data.cronjobsLimit ?? 0,
+      daemonsetsLimit: data.daemonsetsLimit ?? 0,
+      statefulsetsLimit: data.statefulsetsLimit ?? 0,
+      ingressesLimit: data.ingressesLimit ?? 0
     })
   });
 }
@@ -646,4 +646,32 @@ export async function searchProjectWorkspaceApi(
   });
 
   return Array.isArray(response) ? response.map((item) => normalizeProjectWorkspace(item)) : [];
+}
+
+export async function syncProjectApi(id: number): Promise<string> {
+  return requestJson<string>(`/manager/v1/sync/project/${id}`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+}
+
+export async function syncProjectClusterResourceApi(id: number): Promise<string> {
+  return requestJson<string>(`/manager/v1/sync/project/${id}/sync`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+}
+
+export async function syncAllProjectsApi(): Promise<string> {
+  return requestJson<string>("/manager/v1/sync/project/all", {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+}
+
+export async function syncWorkspaceApi(id: number): Promise<string> {
+  return requestJson<string>(`/manager/v1/sync/workspace/${id}/sync`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
 }

@@ -28,6 +28,7 @@
     </header>
 
     <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
+    <div v-if="successMsg" class="success">{{ successMsg }}</div>
     <div v-else-if="selectedProjectId <= 0" class="hint">请先选择项目</div>
     <div v-else-if="selectedProjectClusterId <= 0" class="hint">请先选择资源池后查看工作空间</div>
 
@@ -48,7 +49,13 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in workspaces" :key="item.id">
+        <tr v-if="loading">
+          <td colspan="11" class="empty">正在加载工作空间...</td>
+        </tr>
+        <tr v-else-if="workspaces.length === 0">
+          <td colspan="11" class="empty">暂无工作空间</td>
+        </tr>
+        <tr v-for="item in workspaces" v-else :key="item.id">
           <td>{{ item.id }}</td>
           <td>{{ item.name }}</td>
           <td>{{ item.namespace }}</td>
@@ -64,11 +71,11 @@
           <td>{{ item.description || "-" }}</td>
           <td class="actions">
             <button @click="openEdit(item)">编辑</button>
+            <button :disabled="syncLoadingMap[item.id]" @click="syncWorkspace(item)">
+              {{ syncLoadingMap[item.id] ? "同步中..." : "同步" }}
+            </button>
             <button @click="remove(item)">删除</button>
           </td>
-        </tr>
-        <tr v-if="!loading && workspaces.length === 0">
-          <td colspan="11" class="empty">暂无工作空间</td>
         </tr>
       </tbody>
     </table>
@@ -123,13 +130,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import {
   addProjectWorkspaceApi,
   deleteProjectWorkspaceApi,
   searchProjectApi,
   searchProjectClusterApi,
   searchProjectWorkspaceApi,
+  syncWorkspaceApi,
   type AddProjectWorkspaceRequest,
   type Project,
   type ProjectCluster,
@@ -140,6 +148,9 @@ import {
 
 const loading = ref(false);
 const errorMsg = ref("");
+const successMsg = ref("");
+const syncLoadingMap = ref<Record<number, boolean>>({});
+let successTimer = 0;
 
 const selectedProjectId = ref(0);
 const selectedProjectClusterId = ref(0);
@@ -173,9 +184,20 @@ function formatNum(v: number | undefined): string {
   return v.toFixed(2);
 }
 
+function showSuccess(message: string): void {
+  successMsg.value = message;
+  window.clearTimeout(successTimer);
+  successTimer = window.setTimeout(() => {
+    successMsg.value = "";
+  }, 2200);
+}
+
 async function loadProjects() {
   const resp = await searchProjectApi({ page: 1, pageSize: 200 });
   projects.value = resp.items ?? [];
+  if (selectedProjectId.value <= 0 && projects.value.length > 0) {
+    selectedProjectId.value = projects.value[0]?.id ?? 0;
+  }
 }
 
 async function loadProjectClusters() {
@@ -306,6 +328,7 @@ async function submitDialog() {
         podsAllocated: dialog.form.podsAllocated
       };
       await addProjectWorkspaceApi(payload);
+      showSuccess("工作空间创建成功");
     } else {
       const payload: UpdateProjectWorkspaceRequest = {
         name: dialog.form.name,
@@ -317,6 +340,7 @@ async function submitDialog() {
         podsAllocated: dialog.form.podsAllocated
       };
       await updateProjectWorkspaceApi(dialog.targetId, payload);
+      showSuccess("工作空间更新成功");
     }
     dialog.visible = false;
     await loadData();
@@ -329,18 +353,41 @@ async function remove(item: ProjectWorkspace) {
   if (!confirm(`确定删除工作空间 "${item.name}" 吗？`)) return;
   try {
     await deleteProjectWorkspaceApi(item.id);
+    showSuccess("工作空间删除成功");
     await loadData();
   } catch (error) {
     errorMsg.value = error instanceof Error ? error.message : "删除工作空间失败";
   }
 }
 
+async function syncWorkspace(item: ProjectWorkspace): Promise<void> {
+  syncLoadingMap.value[item.id] = true;
+  errorMsg.value = "";
+  try {
+    await syncWorkspaceApi(item.id);
+    showSuccess(`已触发工作空间 ${item.name} 同步`);
+    await loadData();
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : "同步工作空间失败";
+  } finally {
+    syncLoadingMap.value[item.id] = false;
+  }
+}
+
 onMounted(async () => {
   try {
     await loadProjects();
+    if (selectedProjectId.value > 0) {
+      await loadProjectClusters();
+      await loadData();
+    }
   } catch (error) {
     errorMsg.value = error instanceof Error ? error.message : "初始化失败";
   }
+});
+
+onBeforeUnmount(() => {
+  window.clearTimeout(successTimer);
 });
 </script>
 
@@ -382,6 +429,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .hint {
   color: #6b7280;
   background: #f9fafb;
@@ -394,6 +446,14 @@ button {
   color: #b91c1c;
   background: #fee2e2;
   border: 1px solid #fecaca;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.success {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
   padding: 8px 10px;
   border-radius: 6px;
 }

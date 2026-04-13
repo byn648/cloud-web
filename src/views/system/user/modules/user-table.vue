@@ -47,23 +47,34 @@
             <td>{{ item.isNeedResetPwd === 1 ? "是" : "否" }}</td>
             <td>{{ formatTimestamp(item.updatedAt || item.createdAt) }}</td>
             <td class="actions">
-              <button
-                class="action-btn"
-                :disabled="
-                  statusLoadingMap[item.id] ||
-                  item.username === currentUsername
-                "
-                @click="emit('toggle-status', item)"
-              >
-                {{ statusLoadingMap[item.id] ? "处理中..." : item.status === 1 ? "禁用" : "启用" }}
-              </button>
-              <button
-                class="action-btn secondary"
-                :disabled="resetLoadingMap[item.id]"
-                @click="emit('reset-password', item)"
-              >
-                {{ resetLoadingMap[item.id] ? "重置中..." : "重置密码" }}
-              </button>
+              <div class="menu-wrap" @click.stop>
+                <button
+                  class="more-btn"
+                  :disabled="isActionDisabled(item.id)"
+                  @click.stop="toggleActionMenu(item.id)"
+                >
+                  ⋮
+                </button>
+                <div v-if="openedActionMenuUserId === item.id" class="action-menu">
+                  <button class="menu-item" @click="handleEdit(item)">编辑用户</button>
+                  <button class="menu-item" @click="handleRole(item)">分配角色</button>
+                  <button class="menu-item" @click="handlePlatform(item)">平台授权</button>
+                  <button
+                    class="menu-item"
+                    :disabled="resetLoadingMap[item.id] || item.username === currentUsername"
+                    @click="handleResetPassword(item)"
+                  >
+                    {{ resetLoadingMap[item.id] ? "重置中..." : "重置密码" }}
+                  </button>
+                  <button
+                    class="menu-item danger"
+                    :disabled="deleteLoadingMap[item.id] || item.username === currentUsername"
+                    @click="handleDeleteUser(item)"
+                  >
+                    {{ deleteLoadingMap[item.id] ? "删除中..." : "删除用户" }}
+                  </button>
+                </div>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -81,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { UserSysUser } from "../../../../api/portal/user";
 import { formatTimestamp, getStatusMeta } from "./table-config";
 
@@ -92,15 +103,22 @@ const props = defineProps<{
   page: number;
   pageSize: number;
   currentUsername: string;
-  statusLoadingMap: Record<number, boolean>;
   resetLoadingMap: Record<number, boolean>;
+  deleteLoadingMap: Record<number, boolean>;
+  roleLoadingMap: Record<number, boolean>;
+  platformLoadingMap: Record<number, boolean>;
 }>();
 
 const emit = defineEmits<{
-  "toggle-status": [user: UserSysUser];
+  "edit-user": [user: UserSysUser];
+  "assign-role": [user: UserSysUser];
+  "authorize-platform": [user: UserSysUser];
   "reset-password": [user: UserSysUser];
+  "delete-user": [user: UserSysUser];
   "change-page": [page: number];
 }>();
+
+const openedActionMenuUserId = ref<number | null>(null);
 
 const pageCount = computed(() => {
   if (props.total <= 0 || props.pageSize <= 0) {
@@ -108,6 +126,71 @@ const pageCount = computed(() => {
   }
 
   return Math.max(1, Math.ceil(props.total / props.pageSize));
+});
+
+function isActionDisabled(userId: number): boolean {
+  return !!props.deleteLoadingMap[userId] || !!props.resetLoadingMap[userId];
+}
+
+function toggleActionMenu(userId: number): void {
+  openedActionMenuUserId.value = openedActionMenuUserId.value === userId ? null : userId;
+}
+
+function closeActionMenu(): void {
+  openedActionMenuUserId.value = null;
+}
+
+function handleEdit(user: UserSysUser): void {
+  emit("edit-user", user);
+  closeActionMenu();
+}
+
+function handleRole(user: UserSysUser): void {
+  if (props.roleLoadingMap[user.id]) {
+    return;
+  }
+  emit("assign-role", user);
+  closeActionMenu();
+}
+
+function handlePlatform(user: UserSysUser): void {
+  if (props.platformLoadingMap[user.id]) {
+    return;
+  }
+  emit("authorize-platform", user);
+  closeActionMenu();
+}
+
+function handleResetPassword(user: UserSysUser): void {
+  if (props.resetLoadingMap[user.id] || user.username === props.currentUsername) {
+    return;
+  }
+  emit("reset-password", user);
+  closeActionMenu();
+}
+
+function handleDeleteUser(user: UserSysUser): void {
+  if (props.deleteLoadingMap[user.id] || user.username === props.currentUsername) {
+    return;
+  }
+  emit("delete-user", user);
+  closeActionMenu();
+}
+
+function handleDocumentClick(): void {
+  closeActionMenu();
+}
+
+onBeforeUnmount(() => {
+  if (typeof window !== "undefined") {
+    document.removeEventListener("click", handleDocumentClick);
+  }
+});
+
+onMounted(() => {
+  if (typeof window !== "undefined") {
+    document.addEventListener("click", handleDocumentClick);
+  }
 });
 </script>
 
@@ -211,28 +294,67 @@ const pageCount = computed(() => {
 }
 
 .actions {
-  display: flex;
-  gap: 8px;
+  position: relative;
 }
 
-.action-btn {
-  height: 30px;
-  border-radius: 8px;
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: #fff;
-  padding: 0 10px;
-  font-size: 12px;
+.menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.more-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 20px;
+  line-height: 1;
   cursor: pointer;
 }
 
-.action-btn.secondary {
-  border-color: #cbd5e1;
-  background: #fff;
-  color: #0f172a;
+.more-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
-.action-btn:disabled {
+.action-menu {
+  position: absolute;
+  right: 0;
+  top: 38px;
+  z-index: 20;
+  width: 148px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px -30px rgba(15, 23, 42, 0.45);
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+}
+
+.menu-item {
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  text-align: left;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.menu-item:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.menu-item.danger {
+  color: #dc2626;
+}
+
+.menu-item:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }

@@ -86,6 +86,10 @@ export interface UserUpdatePasswordRequest {
   confirmPassword: string;
 }
 
+interface UserUpdatePasswordOptions {
+  auth?: boolean;
+}
+
 export interface UserUpdateStatusRequest {
   id: number;
   status: 0 | 1;
@@ -207,8 +211,13 @@ export async function updateUserAvatarApi(data: UserUpdateAvatarRequest): Promis
   });
 }
 
-export async function updateUserPasswordApi(data: UserUpdatePasswordRequest): Promise<string> {
+export async function updateUserPasswordApi(
+  data: UserUpdatePasswordRequest,
+  options: UserUpdatePasswordOptions = {}
+): Promise<string> {
+  const { auth = true } = options;
   return requestJson<string>(`${USER_BASE_PATH}/password`, {
+    auth,
     method: "PUT",
     body: JSON.stringify({
       username: data.username,

@@ -13,7 +13,7 @@
       <div class="menu-scroll">
         <ul class="menu">
           <li
-            v-for="item in menuItems"
+            v-for="item in visibleMenuItems"
             :key="item.label"
             class="menu-group"
           >
@@ -123,6 +123,10 @@
         <ProjectResourcePage v-else-if="showProjectResourcePage" />
         <ProjectWorkspacePage v-else-if="showProjectWorkspacePage" />
         <UserManagementPage v-else-if="showUserManagementPage" />
+        <RoleManagementPage v-else-if="showRoleManagementPage" />
+        <ApiManagementPage v-else-if="showApiManagementPage" />
+        <PermissionManagementPage v-else-if="showRolePermissionPage" />
+        <MenuManagementPage v-else-if="showMenuManagementPage" />
         
         <template v-else>
           <section class="hero-center-stage">
@@ -189,17 +193,51 @@ import ProjectManagementPage from "../../project/management/index.vue";
 import ProjectResourcePage from "../../project/resource/index.vue";
 import ProjectWorkspacePage from "../../project/workspace/index.vue";
 import UserManagementPage from "../../system/user/index.vue";
+import RoleManagementPage from "../../system/role/index.vue";
+import PermissionManagementPage from "../../system/permission/index.vue";
+import MenuManagementPage from "../../system/menu/index.vue";
+import ApiManagementPage from "../../system/api/index.vue";
 import { getDashboardOverviewApi } from "../../../api/portal/dashboard";
 import { getClusterDetailApi, searchClusterApi } from "../../../api/manager/cluster";
 import { HOME_PATH } from "../../../router/paths";
 import type { DashboardOverviewResponse } from "../../../types/dashboard";
 import type { Cluster } from "../../../api/manager/cluster";
+import {
+  ensurePermissionSnapshot,
+  hasPathPermission,
+  isSuperAdminUser,
+  type PermissionSnapshot
+} from "../../../utils/permission";
 
 interface MenuGroup {
   label: string;
   iconBg: string; // 圆形背景颜色
   svgIcon: string; // 图标 SVG 字符串 (或替换为图片路径)
   children: string[];
+}
+
+type MenuPermissionRequirement = {
+  paths?: string[];
+  codes?: string[];
+};
+
+const PERMISSION_ROUTE_ALIASES: Record<string, string[]> = {
+  "/system/permission": ["/system/permission", "/system/api"],
+  "/system/api": ["/system/api", "/system/permission"]
+};
+
+const MENU_PERMISSION_MAP: Record<string, MenuPermissionRequirement> = {
+  "项目中心::项目管理": { paths: ["/project/management"] },
+  "项目中心::资源池": { paths: ["/project/resource"] },
+  "项目中心::工作空间": { paths: ["/project/workspace"] },
+  "系统管理::用户管理": { paths: ["/system/user"] },
+  "系统管理::角色管理": { paths: ["/system/role"] },
+  "系统管理::权限管理": { paths: ["/system/api", "/system/permission"] },
+  "系统管理::菜单管理": { paths: ["/system/menu"] }
+};
+
+function buildMenuPermissionKey(menuLabel: string, subMenuLabel: string): string {
+  return `${menuLabel}::${subMenuLabel}`;
 }
 
 const emit = defineEmits<{ logout: [] }>();
@@ -275,6 +313,48 @@ const menuItems = ref<MenuGroup[]>([
   }
 ]);
 
+const permissionSnapshot = ref<PermissionSnapshot | null>(null);
+const permissionLoaded = ref(false);
+
+function hasSubMenuPermission(menuLabel: string, subMenuLabel: string): boolean {
+  const requirement = MENU_PERMISSION_MAP[buildMenuPermissionKey(menuLabel, subMenuLabel)];
+  if (!requirement) {
+    return true;
+  }
+  if (isSuperAdminUser()) {
+    return true;
+  }
+  if (!permissionLoaded.value) {
+    return true;
+  }
+  if (!permissionSnapshot.value) {
+    return false;
+  }
+
+  const allowedPaths = permissionSnapshot.value.paths;
+  const allowedCodes = permissionSnapshot.value.codes;
+  const requiredPaths = requirement.paths ?? [];
+  const requiredCodes = requirement.codes ?? [];
+  const pathAllowed =
+    requiredPaths.length === 0 ||
+    requiredPaths.some((path) => {
+      const aliases = PERMISSION_ROUTE_ALIASES[path] ?? [path];
+      return aliases.some((aliasPath) => hasPathPermission(aliasPath, allowedPaths));
+    });
+  const codeAllowed = requiredCodes.length === 0 || requiredCodes.some((code) => allowedCodes.includes(code));
+
+  return pathAllowed && codeAllowed;
+}
+
+const visibleMenuItems = computed<MenuGroup[]>(() => {
+  return menuItems.value
+    .map((item) => ({
+      ...item,
+      children: item.children.filter((subMenuLabel) => hasSubMenuPermission(item.label, subMenuLabel))
+    }))
+    .filter((item) => item.children.length > 0);
+});
+
 const activeMenu = ref(menuItems.value[0].label);
 const activeSubMenu = ref(menuItems.value[0].children[0]);
 const expandedMenus = ref<Record<string, boolean>>({
@@ -282,7 +362,7 @@ const expandedMenus = ref<Record<string, boolean>>({
 });
 
 const tabs = computed(() => {
-  const current = menuItems.value.find((item) => item.label === activeMenu.value);
+  const current = visibleMenuItems.value.find((item) => item.label === activeMenu.value);
   return current?.children ?? [];
 });
 
@@ -313,6 +393,21 @@ const showProjectWorkspacePage = computed(
 const showUserManagementPage = computed(
   () => activeMenu.value === "系统管理" && activeSubMenu.value === "用户管理"
 );
+const showRoleManagementPage = computed(
+  () => activeMenu.value === "系统管理" && activeSubMenu.value === "角色管理"
+);
+const showApiManagementPage = computed(
+  () =>
+    activeMenu.value === "系统管理" &&
+    activeSubMenu.value === "权限管理" &&
+    route.path !== "/system/permission"
+);
+const showRolePermissionPage = computed(
+  () => activeMenu.value === "系统管理" && activeSubMenu.value === "权限管理" && route.path === "/system/permission"
+);
+const showMenuManagementPage = computed(
+  () => activeMenu.value === "系统管理" && activeSubMenu.value === "菜单管理"
+);
 
 const activeTab = computed({
   get() { return activeSubMenu.value; },
@@ -338,7 +433,7 @@ function toggleMenu(menuLabel: string): void {
   }
   if (activeMenu.value !== menuLabel) {
     activeMenu.value = menuLabel;
-    const firstSubMenu = menuItems.value.find((item) => item.label === menuLabel)?.children[0];
+    const firstSubMenu = visibleMenuItems.value.find((item) => item.label === menuLabel)?.children[0];
     activeSubMenu.value = firstSubMenu ?? "";
     expandedMenus.value[menuLabel] = true;
     navigateByMenu(menuLabel, activeSubMenu.value);
@@ -380,12 +475,34 @@ function navigateByMenu(menuLabel: string, subMenuLabel: string): void {
     }
     return;
   }
+  if (menuLabel === "系统管理" && subMenuLabel === "角色管理") {
+    if (route.path !== "/system/role") {
+      void router.push("/system/role");
+    }
+    return;
+  }
+  if (menuLabel === "系统管理" && subMenuLabel === "权限管理") {
+    if (route.path !== "/system/api") {
+      void router.push("/system/api");
+    }
+    return;
+  }
+  if (menuLabel === "系统管理" && subMenuLabel === "菜单管理") {
+    if (route.path !== "/system/menu") {
+      void router.push("/system/menu");
+    }
+    return;
+  }
 
   if (
     route.path === "/project/management" ||
     route.path === "/project/resource" ||
     route.path === "/project/workspace" ||
-    route.path === "/system/user"
+    route.path === "/system/user" ||
+    route.path === "/system/role" ||
+    route.path === "/system/api" ||
+    route.path === "/system/permission" ||
+    route.path === "/system/menu"
   ) {
     void router.push(HOME_PATH);
   }
@@ -396,16 +513,28 @@ function syncMenuByRoute(path: string): void {
     path !== "/project/management" &&
     path !== "/project/resource" &&
     path !== "/project/workspace" &&
-    path !== "/system/user"
+    path !== "/system/user" &&
+    path !== "/system/role" &&
+    path !== "/system/api" &&
+    path !== "/system/permission" &&
+    path !== "/system/menu"
   ) {
     return;
   }
   inClusterManagement.value = false;
   inClusterAdding.value = false;
   consoleClusterId.value = null;
-  if (path === "/system/user") {
+  if (path.startsWith("/system/")) {
     activeMenu.value = "系统管理";
-    activeSubMenu.value = "用户管理";
+    if (path === "/system/role") {
+      activeSubMenu.value = "角色管理";
+    } else if (path === "/system/api" || path === "/system/permission") {
+      activeSubMenu.value = "权限管理";
+    } else if (path === "/system/menu") {
+      activeSubMenu.value = "菜单管理";
+    } else {
+      activeSubMenu.value = "用户管理";
+    }
     expandedMenus.value = { "系统管理": true };
     return;
   }
@@ -419,6 +548,46 @@ function syncMenuByRoute(path: string): void {
     activeSubMenu.value = "项目管理";
   }
   expandedMenus.value = { "项目中心": true };
+}
+
+function ensureActiveMenuSelection(): void {
+  if (visibleMenuItems.value.length === 0) {
+    activeMenu.value = "";
+    activeSubMenu.value = "";
+    expandedMenus.value = {};
+    return;
+  }
+
+  const activeMenuItem = visibleMenuItems.value.find((item) => item.label === activeMenu.value);
+  if (!activeMenuItem) {
+    const firstMenuItem = visibleMenuItems.value[0];
+    if (!firstMenuItem) {
+      activeMenu.value = "";
+      activeSubMenu.value = "";
+      expandedMenus.value = {};
+      return;
+    }
+    activeMenu.value = firstMenuItem.label;
+    activeSubMenu.value = firstMenuItem.children[0] ?? "";
+    expandedMenus.value = { [firstMenuItem.label]: true };
+    return;
+  }
+
+  if (!activeMenuItem.children.includes(activeSubMenu.value)) {
+    activeSubMenu.value = activeMenuItem.children[0] ?? "";
+  }
+  expandedMenus.value = { [activeMenuItem.label]: true };
+}
+
+async function loadPermissionContext(): Promise<void> {
+  try {
+    permissionSnapshot.value = await ensurePermissionSnapshot();
+  } catch (error) {
+    permissionSnapshot.value = null;
+    console.error("Load menu permission snapshot failed", error);
+  } finally {
+    permissionLoaded.value = true;
+  }
 }
 
 function openClusterConsole(clusterId: number): void {
@@ -475,7 +644,9 @@ function handleUserMenuClickOutside(event: MouseEvent): void {
 
 onMounted(async () => {
   document.addEventListener("click", handleUserMenuClickOutside);
+  await loadPermissionContext();
   syncMenuByRoute(route.path);
+  ensureActiveMenuSelection();
   const userInfoRaw = localStorage.getItem("userInfo");
   const username = userInfoRaw ? (JSON.parse(userInfoRaw).username as string | undefined) : undefined;
   try {
@@ -494,6 +665,17 @@ watch(
   () => route.path,
   (newPath) => {
     syncMenuByRoute(newPath);
+  }
+);
+
+watch(
+  () => visibleMenuItems.value,
+  () => {
+    ensureActiveMenuSelection();
+  },
+  {
+    immediate: true,
+    deep: true
   }
 );
 

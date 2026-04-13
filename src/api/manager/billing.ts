@@ -40,15 +40,35 @@ function normalizePriceConfig(payload: unknown): BillingPriceConfig {
   };
 }
 
+function unwrapPriceConfigList(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (payload && typeof payload === "object") {
+    const wrapped = payload as Record<string, unknown>;
+
+    if (Array.isArray(wrapped.data)) {
+      return wrapped.data;
+    }
+
+    if (Array.isArray(wrapped.items)) {
+      return wrapped.items;
+    }
+  }
+
+  return [];
+}
+
 export async function getBillingPriceConfigListApi(configName?: string): Promise<BillingPriceConfig[]> {
   const query = buildQuery({
     configName: configName?.trim() || undefined
   });
 
-  const response = await requestJson<unknown[]>(`${BILLING_BASE_PATH}/price-config${query}`, {
+  const response = await requestJson<unknown>(`${BILLING_BASE_PATH}/price-config${query}`, {
     method: "GET",
     unwrapData: true
   });
 
-  return Array.isArray(response) ? response.map((item) => normalizePriceConfig(item)) : [];
+  return unwrapPriceConfigList(response).map((item) => normalizePriceConfig(item));
 }

@@ -88,6 +88,48 @@ export function parseString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
+function readPositiveNumberFromStorage(keys: string[]): number | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  for (const key of keys) {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      continue;
+    }
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+export function resolvePlatformId(explicit?: number): number {
+  if (Number.isFinite(explicit) && Number(explicit) > 0) {
+    return Number(explicit);
+  }
+
+  const storageValue = readPositiveNumberFromStorage([
+    "platformId",
+    "currentPlatformId",
+    "selectedPlatformId",
+    "resourcePlatformId"
+  ]);
+  if (storageValue) {
+    return storageValue;
+  }
+
+  const envValue = Number(import.meta.env.VITE_DEFAULT_PLATFORM_ID);
+  if (Number.isFinite(envValue) && envValue > 0) {
+    return envValue;
+  }
+
+  return 1;
+}
+
 interface RequestJsonOptions extends RequestInit {
   auth?: boolean;
   unwrapData?: boolean;
