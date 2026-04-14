@@ -1,6 +1,7 @@
 import { buildQuery, parseNumber, parseString, requestJson, resolvePlatformId } from "../shared";
 
 const ROLE_BASE_PATH = "/portal/v1/role";
+const MAX_PAGE_SIZE = 200;
 
 export interface RoleSysRole {
   id: number;
@@ -90,6 +91,17 @@ function normalizeNumberList(payload: unknown, fieldName: string): number[] {
   return [];
 }
 
+function normalizePageSize(pageSize?: number): number | undefined {
+  if (!Number.isFinite(pageSize)) {
+    return undefined;
+  }
+  const normalized = Math.trunc(Number(pageSize));
+  if (normalized < 1) {
+    return undefined;
+  }
+  return Math.min(normalized, MAX_PAGE_SIZE);
+}
+
 export async function addRoleApi(data: RoleAddRequest): Promise<string> {
   const platformId = resolvePlatformId(data.platformId);
   return requestJson<string>(ROLE_BASE_PATH, {
@@ -136,7 +148,7 @@ export async function searchRoleApi(params: RoleSearchRequest = {}): Promise<Rol
   const query = buildQuery({
     platformId: resolvePlatformId(params.platformId),
     page: params.page,
-    pageSize: params.pageSize,
+    pageSize: normalizePageSize(params.pageSize),
     orderStr: params.orderStr?.trim() || undefined,
     isAsc: params.isAsc,
     name: params.name?.trim() || undefined,

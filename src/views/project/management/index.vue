@@ -614,13 +614,14 @@ async function loadCurrentProjectAdmins(projectId: number): Promise<void> {
 async function loadMemberUsers(): Promise<void> {
   const keyword = memberDialog.keyword.trim();
   const owner = currentUsername.value || readUsernameFromStorage();
+  const isSuperAdmin = owner.toLowerCase() === "super_admin";
   const response = await searchUserApi({
     page: memberDialog.page,
     pageSize: memberDialog.pageSize,
     username: keyword || undefined,
     nickname: keyword || undefined,
     email: keyword || undefined,
-    createBy: owner || undefined
+    createBy: isSuperAdmin ? undefined : owner || undefined
   });
 
   const normalizedKeyword = keyword.toLowerCase();

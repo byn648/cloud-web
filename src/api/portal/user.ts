@@ -2,6 +2,7 @@ import { encodePasswordLikeKubeNova } from "../../utils/encoding";
 import { buildQuery, parseNumber, parseString, requestJson } from "../shared";
 
 const USER_BASE_PATH = "/portal/v1/user";
+const MAX_PAGE_SIZE = 200;
 
 export interface UserSysUser {
   id: number;
@@ -140,6 +141,17 @@ function normalizeUserInfo(payload: unknown): UserSysUserInfo {
   };
 }
 
+function normalizePageSize(pageSize?: number): number | undefined {
+  if (!Number.isFinite(pageSize)) {
+    return undefined;
+  }
+  const normalized = Math.trunc(Number(pageSize));
+  if (normalized < 1) {
+    return undefined;
+  }
+  return Math.min(normalized, MAX_PAGE_SIZE);
+}
+
 export async function addUserApi(data: UserAddRequest): Promise<string> {
   return requestJson<string>(USER_BASE_PATH, {
     method: "POST",
@@ -167,7 +179,7 @@ export async function getUserByIdApi(id: number): Promise<UserSysUser> {
 export async function searchUserApi(params: UserSearchRequest = {}): Promise<UserSearchResponse> {
   const query = buildQuery({
     page: params.page,
-    pageSize: params.pageSize,
+    pageSize: normalizePageSize(params.pageSize),
     orderStr: params.orderStr?.trim() || undefined,
     isAsc: params.isAsc,
     username: params.username?.trim() || undefined,

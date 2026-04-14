@@ -310,6 +310,7 @@ const platformDialog = reactive({
   selectedPlatformIds: [] as number[]
 });
 
+const MAX_QUERY_PAGE_SIZE = 200;
 const PASSWORD_COMPLEXITY_REGEXP = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).+$/;
 
 function formatDateYYYYMMDD(date: Date): string {
@@ -735,10 +736,10 @@ async function openRoleDialog(user: UserSysUser): Promise<void> {
     const isSuperAdmin = currentUsername.value === "super_admin";
     const searchRequest =
       isSuperAdmin
-        ? { page: 1, pageSize: 500 }
+        ? { page: 1, pageSize: MAX_QUERY_PAGE_SIZE }
         : {
             page: 1,
-            pageSize: 500,
+            pageSize: MAX_QUERY_PAGE_SIZE,
             createBy: currentUsername.value || "__no_creator__"
           };
 
@@ -808,7 +809,7 @@ async function submitRoleDialog(): Promise<void> {
 
 async function isUserBoundToPlatform(userId: number, platformId: number): Promise<boolean> {
   let page = 1;
-  const pageSize = 200;
+  const pageSize = MAX_QUERY_PAGE_SIZE;
   let seen = 0;
   let total = 0;
 
@@ -846,7 +847,7 @@ async function openPlatformDialog(user: UserSysUser): Promise<void> {
   try {
     const platformResponse = await searchPlatformApi({
       page: 1,
-      pageSize: 200,
+      pageSize: MAX_QUERY_PAGE_SIZE,
       orderStr: "sort",
       isAsc: true
     });
