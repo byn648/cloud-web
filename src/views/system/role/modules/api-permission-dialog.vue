@@ -39,9 +39,10 @@
           <span class="stat-chip" :class="api7VisibilityClass">API #7 {{ api7VisibilityText }}</span>
         </div>
         <div class="toolbar-right">
-          <label class="quick-search">
+          <label id="quick-search-label" class="quick-search">
             <span>快速定位</span>
             <input
+              id="api-quick-search"
               v-model.trim="quickKeyword"
               :disabled="loading || saving"
               placeholder="输入 ID/名称/路径，例如 7 或 /portal/v1/user"

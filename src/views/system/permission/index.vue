@@ -26,11 +26,11 @@
       <template v-else>
         <label class="field">
           <span>角色筛选</span>
-          <input v-model.trim="roleKeyword" placeholder="按角色名称或编码过滤" />
+          <input id="perm-role-keyword" v-model.trim="roleKeyword" placeholder="按角色名称或编码过滤" />
         </label>
         <label class="field">
           <span>当前角色</span>
-          <select v-model.number="selectedRoleId" :disabled="loadingBase || filteredRoles.length === 0">
+          <select id="perm-role-select" v-model.number="selectedRoleId" :disabled="loadingBase || filteredRoles.length === 0">
             <option v-if="filteredRoles.length === 0" :value="0">暂无可选角色</option>
             <option v-for="item in filteredRoles" :key="item.id" :value="item.id">
               {{ item.name }} ({{ item.code || "-" }})
@@ -145,15 +145,15 @@
             <form class="api-search-grid" @submit.prevent="handleApiSearch">
               <label class="field">
                 <span>API 名称</span>
-                <input v-model.trim="apiSearchForm.name" :disabled="loadingApiList" placeholder="请输入 API 名称" />
+                <input id="perm-api-name" v-model.trim="apiSearchForm.name" :disabled="loadingApiList" placeholder="请输入 API 名称" />
               </label>
               <label class="field">
                 <span>API 路径</span>
-                <input v-model.trim="apiSearchForm.path" :disabled="loadingApiList" placeholder="例如：/portal/v1/user" />
+                <input id="perm-api-path" v-model.trim="apiSearchForm.path" :disabled="loadingApiList" placeholder="例如：/portal/v1/user" />
               </label>
               <label class="field">
                 <span>HTTP 方法</span>
-                <select v-model="apiSearchForm.method" :disabled="loadingApiList">
+                <select id="perm-api-method" v-model="apiSearchForm.method" :disabled="loadingApiList">
                   <option value="">全部</option>
                   <option v-for="item in methodOptions" :key="item" :value="item">{{ item }}</option>
                 </select>

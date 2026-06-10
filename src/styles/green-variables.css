@@ -1,0 +1,139 @@
+/* GreenCC Module — CSS Variables (Material 3 inspired) */
+:root,
+[data-theme="light"] {
+  --m3-primary: #0b57d0;
+  --m3-primary-container: #d3e3fd;
+  --m3-on-primary: #ffffff;
+  --m3-secondary: #3b82f6;
+  --m3-tertiary: #a855f7;
+  --m3-warning: #f59e0b;
+  --m3-danger: #ef4444;
+  --m3-success: #22c55e;
+
+  --m3-surface: #ffffff;
+  --m3-surface-variant: #f1f5f9;
+  --m3-surface-bright: #f8fafc;
+  --m3-background: #f8fafc;
+
+  --m3-text-main: #1f2937;
+  --m3-text-secondary: #6b7280;
+  --m3-text-hint: #9ca3af;
+  --m3-text-on-primary: #ffffff;
+
+  --m3-border: #e5e7eb;
+  --m3-divider: #f1f5f9;
+
+  --m3-shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --m3-shadow-md: 0 4px 12px rgba(0,0,0,0.10);
+  --m3-shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+
+  /* Layout */
+  --m3-sidebar-width: 220px;
+  --m3-topbar-height: 60px;
+  --m3-radius-sm: 6px;
+  --m3-radius-md: 10px;
+  --m3-radius-lg: 14px;
+
+  /* Sidebar */
+  --m3-sidebar-bg: #ffffff;
+  --m3-sidebar-active-bg: #d3e3fd;
+  --m3-sidebar-active-text: #0b57d0;
+  --m3-sidebar-text: #374151;
+  --m3-sidebar-hover-bg: #f1f5f9;
+  --m3-sidebar-hover-text: #0b57d0;
+
+  /* Charts */
+  --m3-chart-bg: transparent;
+  --m3-chart-grid: rgba(0, 0, 0, 0.05);
+  --m3-chart-axis: #6b7280;
+}
+
+[data-theme="dark"] {
+  --m3-primary: #a8c7fa;
+  --m3-primary-container: #041e49;
+  --m3-on-primary: #041e49;
+  --m3-secondary: #93c5fd;
+  --m3-tertiary: #d8b4fe;
+  --m3-warning: #fcd34d;
+  --m3-danger: #fca5a5;
+  --m3-success: #86efac;
+
+  --m3-surface: #0f172a;
+  --m3-surface-variant: #1e293b;
+  --m3-surface-bright: #1e293b;
+  --m3-background: #0a0e1a;
+
+  --m3-text-main: #e2e8f0;
+  --m3-text-secondary: #94a3b8;
+  --m3-text-hint: #64748b;
+  --m3-text-on-primary: #041e49;
+
+  --m3-border: rgba(255, 255, 255, 0.08);
+  --m3-divider: rgba(255, 255, 255, 0.05);
+
+  --m3-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --m3-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --m3-shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+
+  /* Layout */
+  --m3-sidebar-width: 220px;
+  --m3-topbar-height: 60px;
+  --m3-radius-sm: 6px;
+  --m3-radius-md: 10px;
+  --m3-radius-lg: 14px;
+
+  /* Sidebar */
+  --m3-sidebar-bg: #0f172a;
+  --m3-sidebar-active-bg: rgba(168, 199, 250, 0.12);
+  --m3-sidebar-active-text: #a8c7fa;
+  --m3-sidebar-text: #cbd5e1;
+  --m3-sidebar-hover-bg: rgba(255, 255, 255, 0.04);
+  --m3-sidebar-hover-text: #a8c7fa;
+
+  /* Charts */
+  --m3-chart-bg: transparent;
+  --m3-chart-grid: rgba(255, 255, 255, 0.06);
+  --m3-chart-axis: #64748b;
+}
+
+/* Shared component styles */
+.green-select-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.green-select-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--m3-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.green-select {
+  padding: 5px 8px;
+  border: 1px solid var(--m3-border);
+  border-radius: var(--m3-radius-sm);
+  background: var(--m3-surface);
+  color: var(--m3-text-main);
+  font-size: 12.5px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 110px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+.green-select:focus {
+  border-color: var(--m3-primary);
+}
+
+.green-select option {
+  background: var(--m3-surface);
+  color: var(--m3-text-main);
+}

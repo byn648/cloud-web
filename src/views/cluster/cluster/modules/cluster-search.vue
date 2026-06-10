@@ -2,12 +2,12 @@
   <form class="search-form" @submit.prevent="emitSearch">
     <label class="field">
       <span>集群名称</span>
-      <input v-model.trim="localModel.name" placeholder="请输入集群名称" />
+      <input id="cluster-name" v-model.trim="localModel.name" placeholder="请输入集群名称" />
     </label>
 
     <label class="field">
       <span>环境类型</span>
-      <select v-model="localModel.environment">
+      <select id="cluster-environment" v-model="localModel.environment">
         <option
           v-for="option in environmentOptions"
           :key="option.value || 'all-env'"
@@ -20,7 +20,7 @@
 
     <label class="field">
       <span>集群类型</span>
-      <select v-model="localModel.clusterType">
+      <select id="cluster-type" v-model="localModel.clusterType">
         <option
           v-for="option in clusterTypeOptions"
           :key="option.value || 'all-type'"

@@ -20,11 +20,11 @@
       <form class="search-grid" @submit.prevent="search">
         <label class="field">
           <span>项目名称</span>
-          <input v-model.trim="filters.name" :disabled="loading" placeholder="按项目名搜索" />
+          <input id="project-name" v-model.trim="filters.name" :disabled="loading" placeholder="按项目名搜索" />
         </label>
         <label class="field">
           <span>UUID</span>
-          <input v-model.trim="filters.uuid" :disabled="loading" placeholder="按 UUID 搜索" />
+          <input id="project-uuid" v-model.trim="filters.uuid" :disabled="loading" placeholder="按 UUID 搜索" />
         </label>
         <div class="search-actions">
           <button type="submit" :disabled="loading">搜索</button>

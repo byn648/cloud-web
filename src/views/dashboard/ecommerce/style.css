@@ -176,6 +176,51 @@
 .tab-item.active { background-color: #d3e3fd; color: #041e49; border-color: transparent; }
 
 .content-scroll-area { flex: 1; overflow-y: auto; padding: 0 32px 40px; }
+.content-scroll-area::-webkit-scrollbar { width: 6px; }
+.content-scroll-area::-webkit-scrollbar-track { background: transparent; }
+.content-scroll-area::-webkit-scrollbar-thumb { background: var(--m3-border); border-radius: 3px; }
+
+/* 绿色计算详情页导航栏 */
+.green-detail-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 32px;
+  background: var(--m3-surface);
+  border-bottom: 1px solid var(--m3-border);
+  flex-shrink: 0;
+}
+
+.green-detail-nav .back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1px solid var(--m3-border);
+  border-radius: 6px;
+  background: var(--m3-surface);
+  color: var(--m3-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.green-detail-nav .back-btn:hover {
+  background: var(--m3-surface-variant);
+  color: var(--m3-text-main);
+  border-color: rgba(11, 87, 208, 0.3);
+}
+
+.green-detail-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--m3-text-main);
+}
+
+.detail-node-name {
+  font-weight: 500;
+  color: #0b57d0;
+}
 .hero-center-stage { display: flex; flex-direction: column; align-items: center; margin: 32px 0 48px; }
 .hero-avatar { width: 80px; height: 80px; border-radius: 50%; background-color: #d3e3fd; color: #0b57d0; display: grid; place-items: center; margin-bottom: 16px; font-size: 32px; font-weight:bold; }
 .welcome-title { font-size: 28px; font-weight: 400; margin: 0 0 32px; color: var(--m3-text-main); }

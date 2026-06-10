@@ -12,6 +12,7 @@
     "@element-plus/icons-vue": "^2.3.2",
     "axios": "^1.15.0",
     "dayjs": "^1.11.20",
+    "echarts": "^5.4.3",
     "element-plus": "^2.13.7",
     "js-yaml": "^4.1.1",
     "lucide-vue-next": "^1.0.0",

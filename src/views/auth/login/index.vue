@@ -13,14 +13,14 @@
       </header>
 
       <form class="card" @submit.prevent="handleSubmit">
-        <label class="field">
+        <label class="field" for="login-username">
           <span>Username</span>
-          <input v-model.trim="form.username" type="text" autocomplete="username" placeholder="super_admin" required />
+          <input id="login-username" v-model.trim="form.username" type="text" autocomplete="username" placeholder="super_admin" required />
         </label>
 
-        <label class="field">
+        <label class="field" for="login-password">
           <span>Password</span>
-          <input v-model.trim="form.password" type="password" autocomplete="current-password" placeholder="••••••••" required />
+          <input id="login-password" v-model.trim="form.password" type="password" autocomplete="current-password" placeholder="••••••••" required />
         </label>
 
         <button class="submit" :disabled="loading">
@@ -32,9 +32,10 @@
           <h3>首次登录重置密码</h3>
           <p>账号 {{ resetPasswordFlow.username }} 需要先设置新密码后才能继续登录。</p>
 
-          <label class="field">
+          <label class="field" for="reset-new-password">
             <span>New password</span>
             <input
+              id="reset-new-password"
               v-model.trim="resetPasswordFlow.newPassword"
               type="password"
               autocomplete="new-password"
@@ -42,9 +43,10 @@
             />
           </label>
 
-          <label class="field">
+          <label class="field" for="reset-confirm-password">
             <span>Confirm password</span>
             <input
+              id="reset-confirm-password"
               v-model.trim="resetPasswordFlow.confirmPassword"
               type="password"
               autocomplete="new-password"

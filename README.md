@@ -52,3 +52,7 @@ npm run dev
 Dev proxy:
 
 - `/portal` -> `http://127.0.0.1:8810`
+- `/manager` -> `http://127.0.0.1:8811`
+- `/workload` -> `http://127.0.0.1:8812`
+- `/green` -> `http://127.0.0.1:8813`
+- `/console` -> `http://127.0.0.1:8818`

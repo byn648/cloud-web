@@ -51,6 +51,10 @@ export default defineConfig(({ mode }) => {
         "/workload": {
           target: buildTarget(workloadPort),
           changeOrigin: true
+        },
+        "/green": {
+          target: buildTarget(8813),
+          changeOrigin: true
         }
       }
     }

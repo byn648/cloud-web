@@ -46,15 +46,15 @@
           <form class="search-grid" @submit.prevent="handleSearch">
             <label class="field">
               <span>API 名称</span>
-              <input v-model.trim="searchForm.name" :disabled="loading" placeholder="请输入 API 名称" />
+              <input id="api-name" v-model.trim="searchForm.name" :disabled="loading" placeholder="请输入 API 名称" />
             </label>
             <label class="field">
               <span>API 路径</span>
-              <input v-model.trim="searchForm.path" :disabled="loading" placeholder="例如：/portal/v1/user" />
+              <input id="api-path" v-model.trim="searchForm.path" :disabled="loading" placeholder="例如：/portal/v1/user" />
             </label>
             <label class="field">
               <span>HTTP 方法</span>
-              <select v-model="searchForm.method" :disabled="loading">
+              <select id="api-method" v-model="searchForm.method" :disabled="loading">
                 <option value="">全部</option>
                 <option v-for="item in methodOptions" :key="item" :value="item">{{ item }}</option>
               </select>
@@ -141,7 +141,7 @@
         <div class="dialog-grid">
           <label class="dialog-field">
             <span>上级分组</span>
-            <select v-model.number="dialog.form.parentId">
+            <select id="api-form-parent" v-model.number="dialog.form.parentId">
               <option :value="0">顶级分组</option>
               <option v-for="row in groupRows" :key="`parent-${row.id}`" :value="row.id">
                 {{ `${"　".repeat(row.depth)}${row.name || `分组-${row.id}`}` }}
@@ -150,24 +150,24 @@
           </label>
           <label class="dialog-field">
             <span>类型</span>
-            <select v-model.number="dialog.form.isPermission">
+            <select id="api-form-type" v-model.number="dialog.form.isPermission">
               <option :value="0">分组</option>
               <option :value="1">权限 API</option>
             </select>
           </label>
           <label class="dialog-field">
             <span>名称</span>
-            <input v-model.trim="dialog.form.name" maxlength="100" placeholder="请输入名称" />
+            <input id="api-form-name" v-model.trim="dialog.form.name" maxlength="100" placeholder="请输入名称" />
           </label>
           <label class="dialog-field" v-if="dialog.form.isPermission === 1">
             <span>HTTP 方法</span>
-            <select v-model="dialog.form.method">
+            <select id="api-form-method" v-model="dialog.form.method">
               <option v-for="item in methodOptions" :key="`dlg-${item}`" :value="item">{{ item }}</option>
             </select>
           </label>
           <label class="dialog-field wide" v-if="dialog.form.isPermission === 1">
             <span>API 路径</span>
-            <input v-model.trim="dialog.form.path" maxlength="220" placeholder="例如：/manager/v1/project" />
+            <input id="api-form-path" v-model.trim="dialog.form.path" maxlength="220" placeholder="例如：/manager/v1/project" />
           </label>
         </div>
         <div class="dialog-actions">

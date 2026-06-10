@@ -8,19 +8,25 @@ import {
 } from "../utils/permission";
 
 const PERMISSION_GUARD_PATHS = new Set<string>([
-  "/project/management",
-  "/project/resource",
-  "/project/workspace",
-  "/system/user",
-  "/system/role",
-  "/system/api",
-  "/system/permission",
-  "/system/menu"
-]);
+    "/project/management",
+    "/project/resource",
+    "/project/workspace",
+    "/system/user",
+    "/system/role",
+    "/system/api",
+    "/system/permission",
+    "/system/menu",
+    "/green",
+    "/green/forecast",
+    "/green/performance"
+  ]);
 
 const PERMISSION_ROUTE_ALIASES: Record<string, string[]> = {
   "/system/permission": ["/system/permission", "/system/api"],
-  "/system/api": ["/system/api", "/system/permission"]
+  "/system/api": ["/system/api", "/system/permission"],
+  "/green": ["/green", "/green/forecast", "/green/performance"],
+  "/green/forecast": ["/green/forecast", "/green/performance", "/green"],
+  "/green/performance": ["/green/performance", "/green/forecast", "/green"]
 };
 
 const router = createRouter({
@@ -89,6 +95,21 @@ const router = createRouter({
       path: "/workspace/application/create",
       name: "AppCreateManager",
       component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/green",
+      name: "GreenIndex",
+      component: () => import("../views/green/index.vue")
+    },
+    {
+      path: "/green/forecast",
+      name: "GreenForecast",
+      component: () => import("../views/forecast/index.vue")
+    },
+    {
+      path: "/green/performance",
+      name: "GreenPerformance",
+      component: () => import("../views/performance/index.vue")
     },
     {
       path: "/:pathMatch(.*)*",
