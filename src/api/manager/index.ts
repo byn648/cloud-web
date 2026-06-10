@@ -4,3 +4,5 @@ export * from "./app";
 export * from "./project";
 export * from "./billing";
 export * from "./dashboard";
+export * from "./audit";
+export * from "./schedule";

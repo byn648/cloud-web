@@ -5,3 +5,4 @@ export * as consoleApi from "./console";
 export * from "./manager";
 export * from "./portal";
 export * from "./console";
+export * from "./workload";

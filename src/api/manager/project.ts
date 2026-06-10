@@ -1,4 +1,4 @@
-import { buildQuery, parseNumber, parseString, requestJson } from "../shared";
+import { buildQuery, parseK8sMemoryStringToGib, parseNumber, parseString, requestJson } from "../shared";
 
 const PROJECT_BASE_PATH = "/manager/v1/project";
 
@@ -20,12 +20,7 @@ const PROJECT_CLUSTER_NUMBER_FIELDS = [
   "cpuOvercommitRatio",
   "cpuCapacity",
   "cpuAllocated",
-  "memLimit",
   "memOvercommitRatio",
-  "memCapacity",
-  "memAllocated",
-  "storageLimit",
-  "storageAllocated",
   "gpuLimit",
   "gpuOvercommitRatio",
   "gpuCapacity",
@@ -38,8 +33,6 @@ const PROJECT_CLUSTER_NUMBER_FIELDS = [
   "secretAllocated",
   "pvcLimit",
   "pvcAllocated",
-  "ephemeralStorageLimit",
-  "ephemeralStorageAllocated",
   "serviceLimit",
   "serviceAllocated",
   "loadbalancersLimit",
@@ -67,8 +60,6 @@ const PROJECT_WORKSPACE_NUMBER_FIELDS = [
   "projectClusterId",
   "projectId",
   "cpuAllocated",
-  "memAllocated",
-  "storageAllocated",
   "gpuAllocated",
   "podsAllocated",
   "createdAt",
@@ -180,6 +171,11 @@ export interface ProjectCluster {
   status?: string;
   createdAt: number;
   updatedAt: number;
+  /** 来自表 onec_cluster_energy_profile，无行时 hasEnergyProfile=false */
+  hasEnergyProfile?: boolean;
+  gridPricePerKwh?: number;
+  hasStorageSoc?: boolean;
+  storageSoc?: number;
 }
 
 export interface AddProjectClusterRequest {
@@ -357,12 +353,12 @@ function normalizeProjectCluster(payload: unknown): ProjectCluster {
     cpuOvercommitRatio: parseNumber(item.cpuOvercommitRatio, 1),
     cpuCapacity: parseNumber(item.cpuCapacity),
     cpuAllocated: parseNumber(item.cpuAllocated),
-    memLimit: parseNumber(item.memLimit),
+    memLimit: parseK8sMemoryStringToGib(item.memLimit),
     memOvercommitRatio: parseNumber(item.memOvercommitRatio, 1),
-    memCapacity: parseNumber(item.memCapacity),
-    memAllocated: parseNumber(item.memAllocated),
-    storageLimit: parseNumber(item.storageLimit),
-    storageAllocated: parseNumber(item.storageAllocated),
+    memCapacity: parseK8sMemoryStringToGib(item.memCapacity),
+    memAllocated: parseK8sMemoryStringToGib(item.memAllocated),
+    storageLimit: parseK8sMemoryStringToGib(item.storageLimit),
+    storageAllocated: parseK8sMemoryStringToGib(item.storageAllocated),
     gpuLimit: parseNumber(item.gpuLimit),
     gpuOvercommitRatio: parseNumber(item.gpuOvercommitRatio, 1),
     gpuCapacity: parseNumber(item.gpuCapacity),
@@ -375,8 +371,8 @@ function normalizeProjectCluster(payload: unknown): ProjectCluster {
     secretAllocated: parseNumber(item.secretAllocated),
     pvcLimit: parseNumber(item.pvcLimit),
     pvcAllocated: parseNumber(item.pvcAllocated),
-    ephemeralStorageLimit: parseNumber(item.ephemeralStorageLimit),
-    ephemeralStorageAllocated: parseNumber(item.ephemeralStorageAllocated),
+    ephemeralStorageLimit: parseK8sMemoryStringToGib(item.ephemeralStorageLimit),
+    ephemeralStorageAllocated: parseK8sMemoryStringToGib(item.ephemeralStorageAllocated),
     serviceLimit: parseNumber(item.serviceLimit),
     serviceAllocated: parseNumber(item.serviceAllocated),
     loadbalancersLimit: parseNumber(item.loadbalancersLimit),
@@ -399,7 +395,11 @@ function normalizeProjectCluster(payload: unknown): ProjectCluster {
     updatedBy: parseString(item.updatedBy),
     status: parseString(item.status),
     createdAt: parseNumber(item.createdAt),
-    updatedAt: parseNumber(item.updatedAt)
+    updatedAt: parseNumber(item.updatedAt),
+    hasEnergyProfile: Boolean(item.hasEnergyProfile),
+    gridPricePerKwh: parseNumber(item.gridPricePerKwh),
+    hasStorageSoc: Boolean(item.hasStorageSoc),
+    storageSoc: parseNumber(item.storageSoc)
   };
 }
 
@@ -419,8 +419,8 @@ function normalizeProjectWorkspace(payload: unknown): ProjectWorkspace {
     namespace: parseString(item.namespace),
     description: parseString(item.description),
     cpuAllocated: parseNumber(item.cpuAllocated),
-    memAllocated: parseNumber(item.memAllocated),
-    storageAllocated: parseNumber(item.storageAllocated),
+    memAllocated: parseK8sMemoryStringToGib(item.memAllocated),
+    storageAllocated: parseK8sMemoryStringToGib(item.storageAllocated),
     gpuAllocated: parseNumber(item.gpuAllocated),
     podsAllocated: parseNumber(item.podsAllocated),
     createdBy: parseString(item.createdBy),
@@ -456,6 +456,40 @@ export async function searchProjectApi(params: SearchProjectRequest): Promise<Se
     items: Array.isArray(response.items) ? response.items.map((item) => normalizeProject(item)) : [],
     total: parseNumber(response.total)
   };
+}
+
+const SELECTOR_PROJECT_PAGE_SIZE = 200;
+const SELECTOR_PROJECT_MAX_PAGES = 50;
+
+/**
+ * 与项目中心表格同一数据源（searchProjectApi），按页聚合直至取全，供应用中心等下拉使用。
+ * 权限过滤由后端与项目中心一致；不区分前端角色。
+ */
+export async function listProjectsForSelectors(params?: { name?: string }): Promise<Project[]> {
+  const name = params?.name?.trim() || undefined;
+  const aggregated: Project[] = [];
+  let reportedTotal = 0;
+
+  for (let page = 1; page <= SELECTOR_PROJECT_MAX_PAGES; page += 1) {
+    const resp = await searchProjectApi({
+      page,
+      pageSize: SELECTOR_PROJECT_PAGE_SIZE,
+      name
+    });
+    const batch = resp.items ?? [];
+    if (page === 1) {
+      reportedTotal = resp.total;
+    }
+    aggregated.push(...batch);
+    if (batch.length < SELECTOR_PROJECT_PAGE_SIZE) {
+      break;
+    }
+    if (reportedTotal > 0 && aggregated.length >= reportedTotal) {
+      break;
+    }
+  }
+
+  return aggregated;
 }
 
 export async function addProjectApi(data: AddProjectRequest): Promise<string> {
@@ -580,6 +614,7 @@ export async function getProjectClusterApi(id: number): Promise<ProjectCluster> 
   return normalizeProjectCluster(response);
 }
 
+/** 项目下已分配/已绑定的集群资源池（onec_project_cluster）；只含该项目能用的项。 */
 export async function searchProjectClusterApi(params: SearchProjectClusterRequest): Promise<ProjectCluster[]> {
   const query = buildQuery({
     projectId: params.projectId,
@@ -609,15 +644,16 @@ export async function addProjectWorkspaceApi(data: AddProjectWorkspaceRequest): 
 }
 
 export async function updateProjectWorkspaceApi(id: number, data: UpdateProjectWorkspaceRequest): Promise<string> {
+  // 与 kube-nova-web 一致：仅提交更新字段；避免 GET 整包 merge 后字段形态与后端不一致（曾导致服务端「获取命名空间失败」类错误）
   return requestJson<string>(`${PROJECT_BASE_PATH}/workspace/${id}`, {
     method: "PUT",
     body: JSON.stringify({
       name: data.name,
-      description: data.description,
-      cpuAllocated: toQuantity(data.cpuAllocated),
-      memAllocated: toQuantity(data.memAllocated),
-      storageAllocated: toQuantity(data.storageAllocated),
-      gpuAllocated: toQuantity(data.gpuAllocated),
+      description: data.description ?? "",
+      cpuAllocated: toQuantity(data.cpuAllocated) ?? "0",
+      memAllocated: toQuantity(data.memAllocated) ?? "0",
+      storageAllocated: toQuantity(data.storageAllocated ?? 0) ?? "0",
+      gpuAllocated: toQuantity(data.gpuAllocated ?? 0) ?? "0",
       podsAllocated: data.podsAllocated
     })
   });
