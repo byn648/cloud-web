@@ -50,9 +50,12 @@
           v-for="cluster in pagedClusters"
           :key="cluster.id"
           :cluster="cluster"
+          :can-assign="canAssignUsers"
+          :assign-loading="Boolean(assignLoadingMap[cluster.id])"
           :sync-loading="Boolean(syncLoadingMap[cluster.id])"
           :delete-loading="Boolean(deleteLoadingMap[cluster.id])"
           @open="openConsole"
+          @assign="openAssignDialog"
           @sync="handleSync"
           @delete="handleDelete"
         />
@@ -95,6 +98,14 @@
               </td>
               <td>{{ formatDate(cluster.createdAt) }}</td>
               <td class="actions">
+                <button
+                  v-if="canAssignUsers"
+                  class="primary-soft"
+                  :disabled="Boolean(assignLoadingMap[cluster.id]) || syncLoadingMap[cluster.id]"
+                  @click="openAssignDialog(cluster)"
+                >
+                  {{ assignLoadingMap[cluster.id] ? "加载中" : "分配用户" }}
+                </button>
                 <button class="outline" :disabled="syncLoadingMap[cluster.id]" @click="handleSync(cluster)">
                   {{ syncLoadingMap[cluster.id] ? "同步中" : "同步" }}
                 </button>
@@ -128,6 +139,99 @@
         </div>
       </footer>
     </template>
+
+    <div v-if="assignDialog.visible" class="dialog-mask" @click.self="closeAssignDialog">
+      <div class="dialog-card">
+        <header class="dialog-head">
+          <div>
+            <h3>分配集群用户</h3>
+            <p>集群：{{ assignDialog.clusterName }}（{{ assignDialog.clusterUuid }}）</p>
+          </div>
+          <button class="icon-btn" :disabled="assignDialog.submitting" @click="closeAssignDialog">关闭</button>
+        </header>
+
+        <section class="dialog-search">
+          <input
+            v-model.trim="assignDialog.keyword"
+            type="text"
+            placeholder="搜索用户名/昵称/邮箱"
+            :disabled="assignDialog.loading || assignDialog.submitting"
+            @keyup.enter="searchAssignUsers"
+          />
+          <button class="outline" :disabled="assignDialog.loading || assignDialog.submitting" @click="searchAssignUsers">
+            查询
+          </button>
+          <button class="outline" :disabled="assignDialog.loading || assignDialog.submitting" @click="resetAssignSearch">
+            重置
+          </button>
+        </section>
+
+        <section class="dialog-body">
+          <div class="dialog-tools">
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                :checked="isCurrentAssignPageAllChecked"
+                :disabled="assignDialog.loading || assignDialog.userOptions.length === 0 || assignDialog.submitting"
+                @change="toggleAssignCurrentPage(($event.target as HTMLInputElement).checked)"
+              />
+              <span>当前页全选</span>
+            </label>
+            <span class="dialog-meta">已选 {{ assignDialog.selectedUserIds.length }} 人</span>
+          </div>
+
+          <div v-if="assignDialog.loading" class="dialog-state">正在加载用户数据...</div>
+          <div v-else-if="assignDialog.userOptions.length === 0" class="dialog-state">暂无可选用户</div>
+          <table v-else class="dialog-table">
+            <thead>
+              <tr>
+                <th style="width: 72px">选择</th>
+                <th>用户名</th>
+                <th>昵称</th>
+                <th>邮箱</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="user in assignDialog.userOptions" :key="`assign-user-${user.id}`">
+                <td>
+                  <input
+                    type="checkbox"
+                    :checked="assignDialog.selectedUserIds.includes(user.id)"
+                    :disabled="assignDialog.submitting"
+                    @change="toggleAssignMember(user, ($event.target as HTMLInputElement).checked)"
+                  />
+                </td>
+                <td>{{ user.username || "-" }}</td>
+                <td>{{ user.nickname || "-" }}</td>
+                <td>{{ user.email || "-" }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <footer class="dialog-foot">
+          <div class="dialog-page">
+            <span>共 {{ assignDialog.total }} 条</span>
+            <button :disabled="assignDialog.page <= 1 || assignDialog.loading" @click="changeAssignPage(assignDialog.page - 1)">
+              上一页
+            </button>
+            <span>{{ assignDialog.page }} / {{ assignPageCount }}</span>
+            <button
+              :disabled="assignDialog.page >= assignPageCount || assignDialog.loading"
+              @click="changeAssignPage(assignDialog.page + 1)"
+            >
+              下一页
+            </button>
+          </div>
+          <div class="dialog-actions">
+            <button class="outline" :disabled="assignDialog.submitting" @click="closeAssignDialog">取消</button>
+            <button class="primary" :disabled="assignDialog.loading || assignDialog.submitting" @click="submitAssignDialog">
+              {{ assignDialog.submitting ? "保存中..." : "保存分配" }}
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -135,11 +239,15 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import {
   deleteClusterApi,
+  getClusterMembersApi,
   searchClusterApi,
+  setClusterMembersApi,
   syncAllClustersApi,
   syncClusterApi,
   type Cluster
 } from "../../../api/manager/cluster";
+import { searchUserApi } from "../../../api/portal/user";
+import { isSuperAdminUser } from "../../../utils/permission";
 import { clusterTypeOptions, environmentOptions, healthStatusConfig, syncStatusConfig } from "./constants";
 import ClusterCard from "./modules/cluster-card.vue";
 import ClusterSearch, { type ClusterSearchForm } from "./modules/cluster-search.vue";
@@ -159,6 +267,29 @@ const errorMsg = ref("");
 const successMsg = ref("");
 const syncLoadingMap = reactive<Record<number, boolean>>({});
 const deleteLoadingMap = reactive<Record<number, boolean>>({});
+const assignLoadingMap = reactive<Record<number, boolean>>({});
+
+type AssignableUser = {
+  id: number;
+  username: string;
+  nickname: string;
+  email: string;
+};
+
+const assignDialog = reactive({
+  visible: false,
+  loading: false,
+  submitting: false,
+  clusterId: 0,
+  clusterUuid: "",
+  clusterName: "",
+  keyword: "",
+  userOptions: [] as AssignableUser[],
+  selectedUserIds: [] as number[],
+  page: 1,
+  pageSize: 12,
+  total: 0
+});
 
 const searchForm = ref<ClusterSearchForm>({
   name: "",
@@ -203,6 +334,22 @@ const pageCount = computed(() => {
 const pagedClusters = computed(() => {
   const start = (pagination.page - 1) * pagination.pageSize;
   return filteredClusters.value.slice(start, start + pagination.pageSize);
+});
+
+const canAssignUsers = computed(() => isSuperAdminUser());
+
+const assignPageCount = computed(() => {
+  if (assignDialog.total <= 0) {
+    return 1;
+  }
+  return Math.max(1, Math.ceil(assignDialog.total / assignDialog.pageSize));
+});
+
+const isCurrentAssignPageAllChecked = computed(() => {
+  if (assignDialog.userOptions.length === 0) {
+    return false;
+  }
+  return assignDialog.userOptions.every((item) => assignDialog.selectedUserIds.includes(item.id));
 });
 
 function showSuccess(message: string): void {
@@ -261,6 +408,34 @@ function syncPagination(): void {
   if (pagination.page < 1) {
     pagination.page = 1;
   }
+}
+
+function uniquePositiveNumbers(values: number[]): number[] {
+  const seen = new Set<number>();
+  const result: number[] = [];
+  values.forEach((value) => {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized) || normalized <= 0 || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  });
+  return result;
+}
+
+function normalizeAssignableUser(payload: {
+  id: number;
+  username?: string;
+  nickname?: string;
+  email?: string;
+}): AssignableUser {
+  return {
+    id: payload.id,
+    username: payload.username ?? "",
+    nickname: payload.nickname ?? "",
+    email: payload.email ?? ""
+  };
 }
 
 async function fetchClusters(): Promise<void> {
@@ -394,6 +569,175 @@ async function handleDelete(cluster: Cluster): Promise<void> {
     errorMsg.value = error instanceof Error ? error.message : "删除集群失败";
   } finally {
     delete deleteLoadingMap[cluster.id];
+  }
+}
+
+function resetAssignDialogState(): void {
+  assignDialog.clusterId = 0;
+  assignDialog.clusterUuid = "";
+  assignDialog.clusterName = "";
+  assignDialog.keyword = "";
+  assignDialog.page = 1;
+  assignDialog.total = 0;
+  assignDialog.userOptions = [];
+  assignDialog.selectedUserIds = [];
+}
+
+async function loadAssignedClusterUsers(clusterUuid: string): Promise<void> {
+  const assigned = await getClusterMembersApi(clusterUuid);
+  assignDialog.selectedUserIds = uniquePositiveNumbers(assigned.map((item) => item.userId));
+}
+
+async function loadAssignableUsers(): Promise<void> {
+  const response = await searchUserApi({
+    page: assignDialog.page,
+    pageSize: assignDialog.pageSize,
+    username: assignDialog.keyword.trim() || undefined,
+    nickname: assignDialog.keyword.trim() || undefined,
+    email: assignDialog.keyword.trim() || undefined
+  });
+
+  const optionsMap = new Map<number, AssignableUser>();
+  response.items.forEach((item) => {
+    const user = normalizeAssignableUser({
+      id: item.id,
+      username: item.username,
+      nickname: item.nickname,
+      email: item.email
+    });
+    if (user.id > 0) {
+      optionsMap.set(user.id, user);
+    }
+  });
+
+  assignDialog.userOptions = Array.from(optionsMap.values());
+  assignDialog.total = response.total > 0 ? response.total : assignDialog.userOptions.length;
+}
+
+async function openAssignDialog(cluster: Cluster): Promise<void> {
+  if (!canAssignUsers.value) {
+    errorMsg.value = "仅超级管理员可分配集群用户";
+    return;
+  }
+
+  assignLoadingMap[cluster.id] = true;
+  clearNotices();
+  assignDialog.visible = true;
+  assignDialog.loading = true;
+  assignDialog.submitting = false;
+  assignDialog.clusterId = cluster.id;
+  assignDialog.clusterUuid = cluster.uuid;
+  assignDialog.clusterName = cluster.name;
+  assignDialog.keyword = "";
+  assignDialog.page = 1;
+  assignDialog.total = 0;
+  assignDialog.userOptions = [];
+  assignDialog.selectedUserIds = [];
+
+  try {
+    await loadAssignedClusterUsers(cluster.uuid);
+    await loadAssignableUsers();
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : "加载集群分配用户失败";
+  } finally {
+    assignDialog.loading = false;
+    delete assignLoadingMap[cluster.id];
+  }
+}
+
+function closeAssignDialog(): void {
+  if (assignDialog.submitting) {
+    return;
+  }
+  assignDialog.visible = false;
+  resetAssignDialogState();
+}
+
+function toggleAssignMember(user: AssignableUser, checked: boolean): void {
+  const selected = uniquePositiveNumbers(assignDialog.selectedUserIds);
+  if (checked) {
+    if (!selected.includes(user.id)) {
+      selected.push(user.id);
+    }
+    assignDialog.selectedUserIds = uniquePositiveNumbers(selected);
+    return;
+  }
+  assignDialog.selectedUserIds = selected.filter((item) => item !== user.id);
+}
+
+function toggleAssignCurrentPage(checked: boolean): void {
+  const currentIds = uniquePositiveNumbers(assignDialog.userOptions.map((item) => item.id));
+  if (checked) {
+    assignDialog.selectedUserIds = uniquePositiveNumbers([...assignDialog.selectedUserIds, ...currentIds]);
+    return;
+  }
+  const currentSet = new Set(currentIds);
+  assignDialog.selectedUserIds = assignDialog.selectedUserIds.filter((item) => !currentSet.has(item));
+}
+
+function searchAssignUsers(): void {
+  assignDialog.page = 1;
+  assignDialog.loading = true;
+  errorMsg.value = "";
+  void loadAssignableUsers()
+    .catch((error: unknown) => {
+      errorMsg.value = error instanceof Error ? error.message : "加载用户列表失败";
+    })
+    .finally(() => {
+      assignDialog.loading = false;
+    });
+}
+
+function resetAssignSearch(): void {
+  assignDialog.keyword = "";
+  assignDialog.page = 1;
+  assignDialog.loading = true;
+  errorMsg.value = "";
+  void loadAssignableUsers()
+    .catch((error: unknown) => {
+      errorMsg.value = error instanceof Error ? error.message : "加载用户列表失败";
+    })
+    .finally(() => {
+      assignDialog.loading = false;
+    });
+}
+
+function changeAssignPage(page: number): void {
+  if (page < 1 || page > assignPageCount.value || page === assignDialog.page) {
+    return;
+  }
+  assignDialog.page = page;
+  assignDialog.loading = true;
+  errorMsg.value = "";
+  void loadAssignableUsers()
+    .catch((error: unknown) => {
+      errorMsg.value = error instanceof Error ? error.message : "加载用户列表失败";
+    })
+    .finally(() => {
+      assignDialog.loading = false;
+    });
+}
+
+async function submitAssignDialog(): Promise<void> {
+  if (!assignDialog.clusterUuid) {
+    errorMsg.value = "集群信息缺失";
+    return;
+  }
+  assignDialog.submitting = true;
+  errorMsg.value = "";
+  try {
+    const message = await setClusterMembersApi(
+      assignDialog.clusterUuid,
+      uniquePositiveNumbers(assignDialog.selectedUserIds)
+    );
+    showSuccess(message || "集群分配用户保存成功");
+    assignDialog.visible = false;
+    resetAssignDialogState();
+    await fetchClusters();
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : "保存集群分配用户失败";
+  } finally {
+    assignDialog.submitting = false;
   }
 }
 
@@ -690,7 +1034,224 @@ onBeforeUnmount(() => {
   color: #c53030;
 }
 
+.actions button.primary-soft {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
 .actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1200;
+}
+
+.dialog-card {
+  width: min(860px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #dbe5f1;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.dialog-head h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #1f2a3d;
+}
+
+.dialog-head p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
+  word-break: break-all;
+}
+
+.icon-btn {
+  height: 30px;
+  border: 1px solid #d3dceb;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.dialog-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #edf2f7;
+  flex-wrap: wrap;
+}
+
+.dialog-search input {
+  flex: 1 1 260px;
+  min-width: 180px;
+  height: 34px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.dialog-search button {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #d8e2ee;
+  background: #fff;
+  color: #334155;
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dialog-body {
+  padding: 12px 18px;
+  overflow: auto;
+  max-height: 56vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dialog-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.dialog-meta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.dialog-state {
+  min-height: 120px;
+  border: 1px dashed #d1d9e6;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 13px;
+  background: #f8fafc;
+}
+
+.dialog-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+}
+
+.dialog-table th,
+.dialog-table td {
+  border-bottom: 1px solid #edf2f7;
+  text-align: left;
+  padding: 9px 10px;
+  font-size: 13px;
+  color: #1f2a3d;
+}
+
+.dialog-table th {
+  position: sticky;
+  top: 0;
+  background: #f8fafd;
+  color: #4b5f7a;
+  font-weight: 700;
+  z-index: 1;
+}
+
+.dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 18px 16px;
+  border-top: 1px solid #edf2f7;
+}
+
+.dialog-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #4b5f7a;
+}
+
+.dialog-page button {
+  height: 30px;
+  border: 1px solid #d2dcea;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.dialog-page button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dialog-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dialog-actions button {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #d8e2ee;
+  background: #fff;
+  color: #334155;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.dialog-actions button.primary {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.dialog-actions button:disabled,
+.icon-btn:disabled,
+.dialog-search button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }

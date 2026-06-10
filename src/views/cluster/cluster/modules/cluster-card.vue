@@ -28,6 +28,14 @@
     <footer class="card-foot">
       <span>创建于 {{ formatDate(cluster.createdAt) }}</span>
       <div class="actions">
+        <button
+          v-if="canAssign"
+          class="btn primary-soft"
+          :disabled="syncLoading || deleteLoading || assignLoading"
+          @click.stop="emit('assign', cluster)"
+        >
+          {{ assignLoading ? "保存中" : "分配用户" }}
+        </button>
         <button class="btn ghost" :disabled="syncLoading || deleteLoading" @click.stop="emit('sync', cluster)">
           {{ syncLoading ? "同步中" : "同步" }}
         </button>
@@ -48,12 +56,15 @@ const props = defineProps<{
   cluster: Cluster;
   syncLoading?: boolean;
   deleteLoading?: boolean;
+  assignLoading?: boolean;
+  canAssign?: boolean;
 }>();
 
 const emit = defineEmits<{
   open: [id: number];
   sync: [cluster: Cluster];
   delete: [cluster: Cluster];
+  assign: [cluster: Cluster];
 }>();
 
 function percent(value: number): string {
@@ -301,6 +312,12 @@ const environmentClassName = computed(() => {
   color: #334155;
   font-size: 12px;
   cursor: pointer;
+}
+
+.btn.primary-soft {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 
 .btn.danger {

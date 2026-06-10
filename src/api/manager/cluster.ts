@@ -240,6 +240,12 @@ export interface ClusterNetwork {
   updatedAt: number;
 }
 
+export interface ClusterMember {
+  userId: number;
+  username: string;
+  nickname: string;
+}
+
 function parseBoolean(value: unknown, fallback = false): boolean {
   if (typeof value === "boolean") {
     return value;
@@ -419,6 +425,15 @@ function normalizeStringArray(payload: unknown): string[] {
     return [];
   }
   return payload.map((item) => parseString(item)).filter((item) => item.length > 0);
+}
+
+function normalizeClusterMember(payload: unknown): ClusterMember {
+  const item = (payload ?? {}) as Record<string, unknown>;
+  return {
+    userId: parseNumber(item.userId),
+    username: parseString(item.username),
+    nickname: parseString(item.nickname)
+  };
 }
 
 export async function addClusterApi(data: AddClusterRequest): Promise<string> {
@@ -603,5 +618,24 @@ export async function syncAllClustersApi(): Promise<string> {
   return requestJson<string>("/manager/v1/sync/cluster/all", {
     method: "POST",
     body: JSON.stringify({})
+  });
+}
+
+export async function getClusterMembersApi(clusterUuid: string): Promise<ClusterMember[]> {
+  const response = await requestJson<unknown[]>(`${CLUSTER_BASE_PATH}/${clusterUuid}/users`, {
+    method: "GET"
+  });
+  if (!Array.isArray(response)) {
+    return [];
+  }
+  return response.map((item) => normalizeClusterMember(item)).filter((item) => item.userId > 0);
+}
+
+export async function setClusterMembersApi(clusterUuid: string, userIds: number[]): Promise<string> {
+  return requestJson<string>(`${CLUSTER_BASE_PATH}/${clusterUuid}/users`, {
+    method: "PUT",
+    body: JSON.stringify({
+      userIds
+    })
   });
 }
