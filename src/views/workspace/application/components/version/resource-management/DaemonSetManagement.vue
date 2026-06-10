@@ -39,8 +39,8 @@
           </div>
         </ElTabPane>
 
-        <!-- 高级管理 - 仅 stable 版本可访问 -->
-        <ElTabPane label="高级管理" name="advanced">
+        <!-- 修改配置 - 仅 stable 版本可访问 -->
+        <ElTabPane label="修改配置" name="advanced">
           <AdvancedManagement
             v-if="loadedTabs.advanced && isStableVersion"
             :version="version"
@@ -128,10 +128,10 @@
   // 🔥 获取版本角色提示信息
   const getVersionTipMessage = () => {
     const roleMessages: Record<string, string> = {
-      primary: '当前为 Flagger 管理的金丝雀主版本，无法直接操作更新和高级管理功能',
-      canary: '当前为金丝雀测试版本，无法直接操作更新和高级管理功能',
-      blue: '当前为蓝绿发布的蓝版本，无法直接操作更新和高级管理功能',
-      green: '当前为蓝绿发布的绿版本，无法直接操作更新和高级管理功能'
+      primary: '当前为 Flagger 管理的金丝雀主版本，无法直接操作更新和修改配置功能',
+      canary: '当前为金丝雀测试版本，无法直接操作更新和修改配置功能',
+      blue: '当前为蓝绿发布的蓝版本，无法直接操作更新和修改配置功能',
+      green: '当前为蓝绿发布的绿版本，无法直接操作更新和修改配置功能'
     }
     return roleMessages[props.version.versionRole || ''] || '当前版本无法操作此功能'
   }

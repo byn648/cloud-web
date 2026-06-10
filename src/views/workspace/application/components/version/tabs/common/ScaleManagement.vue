@@ -13,12 +13,12 @@
           <!-- HPA - 根据资源类型判断是否显示 -->
           <ElMenuItem v-if="supportsAutoscaling" index="hpa">
             <TrendingUp :size="16" />
-            <span>HPA</span>
+            <span>弹性策略</span>
             <ElTag v-if="!hpaSupported" type="info" size="small" class="status-tag">未配置</ElTag>
           </ElMenuItem>
 
           <!-- VPA - 根据资源类型判断是否显示 -->
-          <ElMenuItem v-if="supportsAutoscaling" index="vpa">
+          <ElMenuItem v-if="supportsAutoscaling && !hideVpa" index="vpa">
             <Zap :size="16" />
             <span>VPA</span>
             <ElTag v-if="!vpaSupported" type="info" size="small" class="status-tag">未配置</ElTag>
@@ -34,7 +34,7 @@
             <template #default>
               <div class="alert-content">
                 <p>
-                  <strong>{{ resourceTypeDisplay }}</strong> 类型的工作负载不支持 HPA 和 VPA
+                  <strong>{{ resourceTypeDisplay }}</strong> 类型的工作负载不支持弹性策略和 VPA
                   自动扩缩。
                 </p>
                 <p class="support-tip">
@@ -75,9 +75,9 @@
         </div>
 
         <!-- VPA 管理 -->
-        <div v-show="activeTab === 'vpa'" class="config-section">
+        <div v-show="activeTab === 'vpa' && !hideVpa" class="config-section">
           <VPAManagement
-            v-if="loadedTabs.vpa && supportsAutoscaling"
+            v-if="loadedTabs.vpa && supportsAutoscaling && !hideVpa"
             ref="vpaRef"
             :version="version"
             :application="application"
@@ -94,9 +94,11 @@
 
 <script setup lang="ts">
   import { ref, computed, watch, onMounted, nextTick } from 'vue'
+  import { useRoute } from 'vue-router'
   import { ElMessageBox } from 'element-plus'
   import { Layers, TrendingUp, Zap } from 'lucide-vue-next'
   import type { OnecProjectVersion, OnecProjectApplication, ProjectWorkspace } from '@/api'
+  import { isDemoApplicationContext } from '@/views/workspace/application-demo/create/demoNavigation'
   import ReplicaManagement from './scale/ReplicaManagement.vue'
   import HPAManagement from './scale/HPAManagement.vue'
   import VPAManagement from './scale/VPAManagement.vue'
@@ -111,6 +113,9 @@
   }
 
   const props = defineProps<Props>()
+
+  const route = useRoute()
+  const hideVpa = computed(() => isDemoApplicationContext(route))
 
   const activeTab = ref('replica')
   const pendingTab = ref('replica')
@@ -327,6 +332,11 @@
 
   // 组件挂载时自动加载当前 tab
   onMounted(() => {
+    if (hideVpa.value && activeTab.value === 'vpa') {
+      activeTab.value = 'replica'
+      pendingTab.value = 'replica'
+    }
+
     const tab = activeTab.value as keyof typeof loadedTabs.value
     if (!loadedTabs.value[tab]) {
       loadedTabs.value[tab] = true

@@ -169,21 +169,6 @@ export function getMemoryInBytes(str: string | number | undefined | null): numbe
 }
 
 /**
- * manager 工作空间 memAllocated：库为 GiB 标量，接口常为数字或纯数字字符串；
- * 带单位时（如 2Gi、2048Mi）按 quantity 解析后换算为 GiB。
- */
-export function parseWorkspaceMemGiB(input: string | number | undefined | null): number {
-  if (input === undefined || input === null || input === '') return 0
-  const s = String(input).trim()
-  if (s === '' || s === '0') return 0
-  if (/^\d+(?:\.\d+)?$/.test(s)) {
-    return parseFloat(s)
-  }
-  const bytes = getMemoryInBytes(s)
-  return bytes / (1024 * 1024 * 1024)
-}
-
-/**
  * 格式化内存/存储为字符串
  * @param value 数值
  * @param unit 单位
@@ -411,4 +396,30 @@ export function isValidMemoryFormat(input: string | number | undefined | null): 
 
   // 只接受二进制单位：100Ki、100Mi、100Gi、100Ti
   return /^(\d+(?:\.\d+)?)\s*(Ki|Mi|Gi|Ti)$/i.test(strValue)
+}
+
+/**
+ * 工作空间内存配额：接口多为 GiB 标量；若为纯数字字符串则按 GiB 解析（cloud-web 应用中心用）
+ */
+export function parseWorkspaceMemGiB(raw: string | number | undefined | null): number {
+  if (raw === undefined || raw === null) return 0
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : 0
+  }
+  const s = String(raw).trim()
+  if (!s) return 0
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    const n = Number(s)
+    return Number.isFinite(n) ? n : 0
+  }
+  const lower = s.toLowerCase()
+  const match = lower.match(/^(\d+(?:\.\d+)?)\s*(gib|gi|gb|mib|mi|mb)?$/)
+  if (!match) return 0
+  const val = Number(match[1])
+  if (!Number.isFinite(val)) return 0
+  const unit = match[2] || 'gib'
+  if (unit === 'mib' || unit === 'mi' || unit === 'mb') {
+    return val / 1024
+  }
+  return val
 }

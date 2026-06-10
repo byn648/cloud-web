@@ -129,7 +129,10 @@
         <ApiManagementPage v-else-if="showApiManagementPage" />
         <PermissionManagementPage v-else-if="showRolePermissionPage" />
         <MenuManagementPage v-else-if="showMenuManagementPage" />
+        <WorkloadCreateIndex v-else-if="showApplicationCreatePage" />
+        <component :is="workloadCreateView" v-else-if="workloadCreateView" />
         <ApplicationManagementPage v-else-if="showApplicationPage" />
+        <ApplicationDemoCenterPage v-else-if="showApplicationDemoPage" />
 
         <template v-else>
           <section class="hero-center-stage">
@@ -172,6 +175,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import type { Component } from "vue";
 import { useRoute, useRouter } from "vue-router";
 // 组件引入保持不变
 import Banner from "./modules/banner.vue";
@@ -201,8 +205,15 @@ import RoleManagementPage from "../../system/role/index.vue";
 import PermissionManagementPage from "../../system/permission/index.vue";
 import MenuManagementPage from "../../system/menu/index.vue";
 import ApiManagementPage from "../../system/api/index.vue";
-import ApplicationManagementPage from "../../workspace/application/index.vue";
-import ApplicationCreateManager from "../../workspace/application/ApplicationCreateManager.vue";
+import ApplicationManagementPage from "../../workspace/application/management/index.vue";
+import ApplicationDemoCenterPage from "../../workspace/application-demo/management/index.vue";
+import WorkloadCreateIndex from "../../workspace/workload/create/index.vue";
+import WorkloadCreateDeployment from "../../workspace/workload/create/deployment/index.vue";
+import WorkloadCreateStatefulSet from "../../workspace/workload/create/statefulset/index.vue";
+import WorkloadCreateDaemonSet from "../../workspace/workload/create/daemonset/index.vue";
+import WorkloadCreateCronJob from "../../workspace/workload/create/cronjob/index.vue";
+import WorkloadCreateJob from "../../workspace/workload/create/job/index.vue";
+import WorkloadCreatePod from "../../workspace/workload/create/pod/index.vue";
 import { getDashboardOverviewApi } from "../../../api/portal/dashboard";
 import { getClusterDetailApi, searchClusterApi } from "../../../api/manager/cluster";
 import { HOME_PATH } from "../../../router/paths";
@@ -298,7 +309,7 @@ const menuItems = ref<MenuGroup[]>([
     label: "业务中心", 
     iconBg: "#fdbfd7", // 玫瑰色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#5c0029" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
-    children: ["应用中心", "Pod 管理", "Job 管理", "配置管理"] 
+    children: ["应用中心", "配置管理"]
   },
   { 
     label: "审计报表", 
@@ -422,10 +433,24 @@ const showMenuManagementPage = computed(
   () => activeMenu.value === "系统管理" && activeSubMenu.value === "菜单管理"
 );
 const showApplicationCreatePage = computed(() => route.path === "/workspace/application/create");
-const showApplicationPage = computed(
-  () => activeMenu.value === "业务中心" && activeSubMenu.value === "应用中心" && route.path === "/workspace/application"
-);
 
+const WORKLOAD_CREATE_BY_PATH: Record<string, Component> = {
+  "/workspace/workload/create/deployment": WorkloadCreateDeployment,
+  "/workspace/workload/create/statefulset": WorkloadCreateStatefulSet,
+  "/workspace/workload/create/daemonset": WorkloadCreateDaemonSet,
+  "/workspace/workload/create/cronjob": WorkloadCreateCronJob,
+  "/workspace/workload/create/job": WorkloadCreateJob,
+  "/workspace/workload/create/pod": WorkloadCreatePod
+};
+
+const workloadCreateView = computed(() => WORKLOAD_CREATE_BY_PATH[route.path] ?? null);
+const showApplicationPage = computed(
+  () =>
+    activeMenu.value === "业务中心" &&
+    activeSubMenu.value === "应用中心" &&
+    route.path === "/workspace/application"
+);
+const showApplicationDemoPage = computed(() => route.path.startsWith("/workspace/application-demo"));
 const activeTab = computed({
   get() { return activeSubMenu.value; },
   set(value: string) {
@@ -511,16 +536,11 @@ function navigateByMenu(menuLabel: string, subMenuLabel: string): void {
     return;
   }
   if (menuLabel === "业务中心" && subMenuLabel === "应用中心") {
-    if (route.path === "/workspace/application/create") {
-      void router.push("/workspace/application");
-      return;
-    }
     if (route.path !== "/workspace/application") {
       void router.push("/workspace/application");
     }
     return;
   }
-
   if (
     route.path === "/project/management" ||
     route.path === "/project/resource" ||
@@ -531,7 +551,9 @@ function navigateByMenu(menuLabel: string, subMenuLabel: string): void {
     route.path === "/system/permission" ||
     route.path === "/system/menu" ||
     route.path === "/workspace/application" ||
-    route.path === "/workspace/application/create"
+    route.path.startsWith("/workspace/application-demo") ||
+    route.path === "/workspace/application/create" ||
+    route.path.startsWith("/workspace/workload/create/")
   ) {
     void router.push(HOME_PATH);
   }
@@ -548,14 +570,26 @@ function syncMenuByRoute(path: string): void {
     path !== "/system/permission" &&
     path !== "/system/menu" &&
     path !== "/workspace/application" &&
-    path !== "/workspace/application/create"
+    path !== "/workspace/application-demo" &&
+    path !== "/workspace/application/create" &&
+    !path.startsWith("/workspace/workload/create/")
   ) {
     return;
   }
   inClusterManagement.value = false;
   inClusterAdding.value = false;
   consoleClusterId.value = null;
-  if (path === "/workspace/application" || path === "/workspace/application/create") {
+  if (path === "/workspace/application-demo" || path.startsWith("/workspace/application-demo/create")) {
+    activeMenu.value = "业务中心";
+    activeSubMenu.value = "应用中心";
+    expandedMenus.value = { "业务中心": true };
+    return;
+  }
+  if (
+    path === "/workspace/application" ||
+    path === "/workspace/application/create" ||
+    path.startsWith("/workspace/workload/create/")
+  ) {
     activeMenu.value = "业务中心";
     activeSubMenu.value = "应用中心";
     expandedMenus.value = { "业务中心": true };

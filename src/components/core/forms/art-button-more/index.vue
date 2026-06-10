@@ -1,65 +1,71 @@
-<!-- kube-nova-web ArtButtonMore 的轻量替代：不依赖 ArtIconButton / Iconify -->
+<!-- 更多按钮（与 kube-nova 接口兼容； cloud-web 独立实现，无 ArtIcon/权限依赖） -->
 <template>
-  <ElDropdown v-if="hasAnyAuthItem" trigger="click">
-    <ElButton circle class="art-more-trigger" aria-label="更多">⋮</ElButton>
-    <template #dropdown>
-      <ElDropdownMenu>
-        <template v-for="item in list" :key="item.key">
+  <div class="art-button-more-wrap">
+    <ElDropdown trigger="click" @command="(cmd) => handleCommand(cmd)">
+      <span class="art-button-more-trigger">
+        <slot name="trigger">
+          <ElButton size="small" text type="primary">
+            <MoreVertical :size="14" />
+          </ElButton>
+        </slot>
+      </span>
+      <template #dropdown>
+        <ElDropdownMenu>
           <ElDropdownItem
-            v-if="!item.auth || hasAuth(item.auth)"
+            v-for="item in list"
+            :key="item.key"
+            :command="item.key"
             :disabled="item.disabled"
-            @click="handleClick(item)"
           >
             <span :style="{ color: item.color }">{{ item.label }}</span>
           </ElDropdownItem>
-        </template>
-      </ElDropdownMenu>
-    </template>
-  </ElDropdown>
+        </ElDropdownMenu>
+      </template>
+    </ElDropdown>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { useAuth } from "@/hooks/core/useAuth";
+  import { MoreVertical } from "lucide-vue-next"
+  import { ElButton, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus"
 
-defineOptions({ name: "ArtButtonMore" });
+  defineOptions({ name: "ArtButtonMore" })
 
-const { hasAuth } = useAuth();
+  export interface ButtonMoreItem {
+    key: string | number
+    label: string
+    disabled?: boolean
+    auth?: string
+    icon?: string
+    color?: string
+    iconColor?: string
+  }
 
-export interface ButtonMoreItem {
-  key: string | number;
-  label: string;
-  disabled?: boolean;
-  auth?: string;
-  icon?: string;
-  color?: string;
-  iconColor?: string;
-}
+  const props = withDefaults(
+    defineProps<{
+      list: ButtonMoreItem[]
+      /** 与 kube-nova 渲染函数兼容，此处忽略，统一用默认触发器 */
+      trigger?: unknown
+    }>(),
+    {}
+  )
 
-interface Props {
-  list: ButtonMoreItem[];
-  auth?: string;
-}
+  const emit = defineEmits<{
+    click: [item: ButtonMoreItem]
+  }>()
 
-const props = withDefaults(defineProps<Props>(), {});
-
-const hasAnyAuthItem = computed(() => {
-  return props.list.some((item) => !item.auth || hasAuth(item.auth));
-});
-
-const emit = defineEmits<{
-  click: [item: ButtonMoreItem];
-}>();
-
-function handleClick(item: ButtonMoreItem) {
-  emit("click", item);
-}
+  function handleCommand(key: string | number) {
+    const item = props.list.find((i) => i.key === key)
+    if (item) {
+      emit("click", item)
+    }
+  }
 </script>
 
 <style scoped>
-.art-more-trigger {
-  min-width: 32px;
-  font-weight: 700;
-  line-height: 1;
-}
+  .art-button-more-trigger {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+  }
 </style>

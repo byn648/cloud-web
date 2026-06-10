@@ -16,7 +16,7 @@
             <span>当前状态</span>
           </div>
 
-          <ElFormItem label="当前副本数">
+          <ElFormItem :label="currentReplicasLabel">
             <div class="current-replicas-display">
               <span class="replica-number">{{ currentReplicas ?? '-' }}</span>
               <ElTag type="info" size="small">{{ getResourceTypeDesc(resourceType) }}</ElTag>
@@ -29,9 +29,9 @@
             <span>扩缩容配置</span>
           </div>
 
-          <ElFormItem label="目标副本数">
+          <ElFormItem :label="targetReplicasLabel">
             <template #label>
-              <span>目标副本数</span>
+              <span>{{ targetReplicasLabel }}</span>
               <ElTooltip
                 content="设置期望的副本数量，范围：0-100。系统会自动调整 Pod 数量至目标值。"
                 placement="top"
@@ -209,6 +209,8 @@
     Info
   } from 'lucide-vue-next'
   import { getResourceReplicasApi, scaleResourceApi, type OnecProjectVersion } from '@/api'
+  import { useRoute } from 'vue-router'
+  import { isDemoApplicationContext } from '@/views/workspace/application-demo/create/demoNavigation'
 
   defineOptions({ name: 'ReplicaManagement' })
 
@@ -222,6 +224,14 @@
   const emit = defineEmits<{
     success: []
   }>()
+
+  const route = useRoute()
+  const currentReplicasLabel = computed(() =>
+    isDemoApplicationContext(route) ? '当前实际数' : '当前副本数'
+  )
+  const targetReplicasLabel = computed(() =>
+    isDemoApplicationContext(route) ? '目标实例数' : '目标副本数'
+  )
 
   // 状态管理
   const loading = ref(false)

@@ -1,28 +1,44 @@
 <template>
-  <div class="pods-management-optimized user-page">
-    <!-- 搜索栏 -->
-    <ArtSearchBar
+  <div class="pods-management-optimized user-page pods-container">
+    <!-- 搜索（与 kube-nova ArtSearchBar 等效，避免依赖全局 Art 组件） -->
+    <div
       v-show="showSearchBar"
-      v-model="searchForm"
-      :items="searchFormItems"
-      :showExpand="false"
-      @reset="handleReset"
-      @search="handleSearch"
-    />
-
-    <!-- 工具栏 -->
-    <ArtTableHeader
-      :loading="loading"
-      v-model:showSearchBar="showSearchBar"
-      v-model:columns="columns"
-      :showZebra="true"
-      :showBorder="true"
-      :showHeaderBackground="true"
-      :fullClass="'pods-container'"
-      :layout="'search,refresh,size,fullscreen,columns,settings'"
-      @refresh="handleRefresh"
+      class="pod-search-wrap"
     >
-      <template #left>
+      <ElForm :inline="true" :model="searchForm" label-width="72px" @submit.prevent>
+        <ElFormItem :label="podNameLabel">
+          <ElInput
+            v-model="searchForm.name"
+            clearable
+            :placeholder="podNamePlaceholder"
+            style="width: 200px"
+          />
+        </ElFormItem>
+        <ElFormItem label="状态">
+          <ElSelect
+            v-model="searchForm.status"
+            clearable
+            placeholder="全部"
+            style="width: 160px"
+          >
+            <ElOption
+              v-for="opt in getAllStatusOptions()"
+              :key="String(opt.value)"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </ElSelect>
+        </ElFormItem>
+        <ElFormItem>
+          <ElButton type="primary" @click="handleSearch">查询</ElButton>
+          <ElButton @click="handleReset">重置</ElButton>
+        </ElFormItem>
+      </ElForm>
+    </div>
+
+    <!-- 工具栏（与 kube-nova ArtTableHeader #left 等效） -->
+    <div class="pod-table-toolbar">
+      <div class="pod-table-toolbar__left">
         <!-- 刷新按钮（保持独立） -->
         <ElDropdown @command="handleRefreshCommand" trigger="click">
           <ElButton :icon="RefreshCw" :loading="loading" v-ripple>
@@ -156,19 +172,48 @@
             </ElDropdownMenu>
           </template>
         </ElDropdown>
-      </template>
-    </ArtTableHeader>
+      </div>
+      <div class="pod-table-toolbar__right">
+        <ElButton size="small" @click="showSearchBar = !showSearchBar">
+          {{ showSearchBar ? "隐藏搜索" : "显示搜索" }}
+        </ElButton>
+        <ElButton
+          size="small"
+          :icon="RefreshCw"
+          :loading="loading"
+          @click="handleRefresh"
+        >
+          刷新列表
+        </ElButton>
+      </div>
+    </div>
 
-    <!-- 表格 -->
-    <ArtTable
+    <!-- 表格（与 kube-nova ArtTable 列+formatter 行为等效） -->
+    <ElTable
       ref="tableRef"
-      rowKey="name"
-      :loading="loading"
-      :columns="columns"
+      v-loading="loading"
       :data="filteredPods"
-      :stripe="true"
-      :border="true"
-    />
+      row-key="name"
+      border
+      stripe
+      class="pods-data-table"
+    >
+      <ElTableColumn
+        v-for="col in displayColumns"
+        :key="String(col.prop || col.type)"
+        :prop="col.prop"
+        :label="col.label"
+        :min-width="col.minWidth"
+        :width="col.width"
+        :align="col.align"
+        :fixed="col.fixed"
+        :show-overflow-tooltip="col.showOverflowTooltip"
+      >
+        <template v-if="col.formatter" #default="{ row }">
+          <PodTableFormatter :render="() => col.formatter!(row as PodResourceList)" />
+        </template>
+      </ElTableColumn>
+    </ElTable>
 
     <!-- 容器列表查看对话框 -->
     <ContainerViewer
@@ -219,9 +264,22 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, reactive, computed, watch, onMounted, onUnmounted, h } from 'vue'
-  import type { VNode } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { ref, reactive, computed, watch, onMounted, onUnmounted, h, isVNode, defineComponent } from 'vue'
+  import type { VNode, PropType } from 'vue'
+
+  const PodTableFormatter = defineComponent({
+    name: 'PodTableFormatter',
+    props: {
+      render: { type: Function as PropType<() => unknown>, required: true }
+    },
+    setup(props) {
+      return () => {
+        const r = props.render()
+        return isVNode(r) ? r : h('span', String((r as string | null | undefined) ?? ''))
+      }
+    }
+  })
+  import { useRouter, useRoute } from 'vue-router'
   import {
     ElMessage,
     ElMessageBox,
@@ -229,7 +287,14 @@
     ElButton,
     ElDropdown,
     ElDropdownMenu,
-    ElDropdownItem
+    ElDropdownItem,
+    ElForm,
+    ElFormItem,
+    ElInput,
+    ElSelect,
+    ElOption,
+    ElTable,
+    ElTableColumn
   } from 'element-plus'
   import {
     RefreshCw,
@@ -254,11 +319,17 @@
     Activity
   } from 'lucide-vue-next'
   import ArtButtonMore from '@/components/core/forms/art-button-more/index.vue'
-  import type { ButtonMoreItem } from '@/components/core/forms/art-button-more/index.vue'
+  type ButtonMoreItem = {
+    key: string | number
+    label: string
+    disabled?: boolean
+    color?: string
+  }
   import YamlEditorPro from '@/components/yaml-editor-pro/index.vue'
   import ContainerViewer from './components/container-viewer.vue'
   import InjectEphemeral from './components/inject-ephemeral.vue'
   import PodLogViewer from './components/pod-log-viewer.vue'
+  import { isDemoApplicationContext } from '@/views/workspace/application-demo/create/demoNavigation'
   import {
     getPodListApi,
     getPodContainerListApi,
@@ -299,6 +370,14 @@
   const props = defineProps<Props>()
   const emit = defineEmits<{ refresh: [] }>()
   const router = useRouter()
+  const route = useRoute()
+
+  const podNameLabel = computed(() =>
+    isDemoApplicationContext(route) ? '实例名称' : 'Pod名称'
+  )
+  const podNamePlaceholder = computed(() =>
+    isDemoApplicationContext(route) ? '请输入实例名称' : '请输入 Pod 名称'
+  )
 
   // 状态管理
   const loading = ref(false)
@@ -375,26 +454,6 @@
       triggerJob: resourceType === 'cronjob'
     }
   })
-
-  // 搜索表单配置
-  const searchFormItems = computed(() => [
-    {
-      label: 'Pod名称',
-      key: 'name',
-      type: 'input',
-      props: { clearable: true, placeholder: '请输入Pod名称' }
-    },
-    {
-      label: '状态',
-      key: 'status',
-      type: 'select',
-      props: {
-        clearable: true,
-        placeholder: '请选择状态',
-        options: getAllStatusOptions()
-      }
-    }
-  ])
 
   // 过滤后的 Pods
   const filteredPods = computed(() => {
@@ -519,7 +578,7 @@
         width: 120,
         visible: true,
         // ✅ 方案 1: 使用 div + flex（最推荐）
-        formatter: (row: PodDetailInfo): VNode => {
+        formatter: (row: PodResourceList): VNode => {
           const Icon = getStatusIcon(row.status)
           return h(
             ElTag,
@@ -554,6 +613,14 @@
         width: 70,
         align: 'center' as const,
         visible: true
+      },
+      {
+        prop: 'cluster',
+        label: '集群',
+        width: 140,
+        showOverflowTooltip: true,
+        visible: true,
+        formatter: (row: PodResourceList) => row.cluster || props.cluster?.clusterName || '-'
       },
       {
         prop: 'node',
@@ -736,12 +803,24 @@
 
   const { columns } = createTableColumns()
 
+  const displayColumns = computed((): any[] =>
+    columns.value
+      .filter((c) => c.visible !== false)
+      .map((col) => (col.prop === 'name' ? { ...col, label: podNameLabel.value } : col))
+  )
+
   // 无感更新 Pod 列表
+  const enrichPod = (pod: PodResourceList): PodResourceList => ({
+    ...pod,
+    cluster: pod.cluster || props.cluster?.clusterName || '-'
+  })
+
   const updatePodsSmooth = (newPods: PodResourceList[]) => {
+    const enrichedPods = newPods.map(enrichPod)
     const oldPodsMap = new Map(pods.value.map((p) => [p.name, p]))
     const updatedPods: PodResourceList[] = []
 
-    for (const newPod of newPods) {
+    for (const newPod of enrichedPods) {
       const oldPod = oldPodsMap.get(newPod.name)
       if (!oldPod) {
         updatedPods.push(newPod)
@@ -770,7 +849,7 @@
       if (silent) {
         updatePodsSmooth(response || [])
       } else {
-        pods.value = response || []
+        pods.value = (response || []).map(enrichPod)
       }
     } catch (error) {
       console.error('加载Pod列表失败:', error)
@@ -1311,6 +1390,37 @@
     height: 100%;
     min-height: 650px;
     overflow: hidden;
+  }
+  .pod-search-wrap {
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 8px;
+  }
+  .pod-table-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .pod-table-toolbar__left {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .pod-table-toolbar__right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .pods-data-table {
+    width: 100%;
   }
   .pods-management-optimized {
     // 🔥 Pod 名称可点击样式

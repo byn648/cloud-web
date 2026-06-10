@@ -1,5 +1,4 @@
-import request from '@/utils/http'
-import { useUserStore } from '@/store/modules/user'
+import request from "@/utils/http"
 
 // 定义基础路径
 const POD_BASE_PATH = '/console/v1/pod'
@@ -1133,13 +1132,14 @@ export interface WSMessage<T = any> {
  * @returns 添加了 token 的 URL
  */
 function addTokenToWsUrl(url: string): string {
-  const { accessToken } = useUserStore()
+  const accessToken =
+    typeof localStorage !== "undefined" ? localStorage.getItem("accessToken") : null
 
   if (!accessToken) {
-    console.warn('[WebSocket] 未找到 token，可能需要重新登录')
+    console.warn("[WebSocket] 未找到 token，可能需要重新登录")
     return url
   }
 
-  const separator = url.includes('?') ? '&' : '?'
+  const separator = url.includes("?") ? "&" : "?"
   return `${url}${separator}token=${encodeURIComponent(accessToken)}`
 }

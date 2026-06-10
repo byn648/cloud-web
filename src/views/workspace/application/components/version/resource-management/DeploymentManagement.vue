@@ -2,8 +2,8 @@
   <div class="deployment-management-full">
     <ElCard class="management-card">
       <ElTabs v-model="activeTab" @tab-change="handleTabChange">
-        <!-- Pod管理 - 所有版本都可以访问 -->
-        <ElTabPane label="Pod管理" name="pods">
+        <!-- 实例管理 - 所有版本都可以访问 -->
+        <ElTabPane label="实例管理" name="pods">
           <PodsManagement
             v-if="loadedTabs.pods"
             :version="version"
@@ -64,8 +64,8 @@
           </div>
         </ElTabPane>
 
-        <!-- 高级管理 - 仅 stable 版本可访问 -->
-        <ElTabPane label="高级管理" name="advanced">
+        <!-- 修改配置 - 仅 stable 版本可访问 -->
+        <ElTabPane v-if="!demoSimplified" label="修改配置" name="advanced">
           <AdvancedManagement
             v-if="loadedTabs.advanced && isStableVersion"
             :version="version"
@@ -89,7 +89,7 @@
         </ElTabPane>
 
         <!-- 事件管理 - 所有版本都可以访问 -->
-        <ElTabPane label="事件管理" name="events">
+        <ElTabPane v-if="!demoSimplified" label="事件管理" name="events">
           <EventsManagement
             v-if="loadedTabs.events"
             :version="version"
@@ -103,6 +103,7 @@
 
 <script setup lang="ts">
   import { ref, computed, watch, onMounted, nextTick } from 'vue'
+  import { useRoute } from 'vue-router'
   import { ElMessage } from 'element-plus'
   import type {
     OnecProjectApplication,
@@ -110,6 +111,7 @@
     ProjectCluster,
     ProjectWorkspace
   } from '@/api'
+  import { isDemoApplicationContext } from '@/views/workspace/application-demo/create/demoNavigation'
   import PodsManagement from '../tabs/common/PodsManagement.vue'
   import ScaleManagement from '../tabs/common/ScaleManagement.vue'
   import UpdateManagement from '../tabs/common/UpdateManagement.vue'
@@ -126,6 +128,9 @@
 
   const props = defineProps<Props>()
   const emit = defineEmits<{ refresh: [] }>()
+  const route = useRoute()
+
+  const demoSimplified = computed(() => isDemoApplicationContext(route))
 
   const activeTab = ref('pods')
   const loadedTabs = ref({
@@ -156,10 +161,10 @@
   // 🔥 获取版本角色提示信息
   const getVersionTipMessage = () => {
     const roleMessages: Record<string, string> = {
-      primary: '当前为 Flagger 管理的金丝雀主版本，无法直接操作副本、更新和高级管理功能',
-      canary: '当前为金丝雀测试版本，无法直接操作副本、更新和高级管理功能',
-      blue: '当前为蓝绿发布的蓝版本，无法直接操作副本、更新和高级管理功能',
-      green: '当前为蓝绿发布的绿版本，无法直接操作副本、更新和高级管理功能'
+      primary: '当前为 Flagger 管理的金丝雀主版本，无法直接操作副本、更新和修改配置功能',
+      canary: '当前为金丝雀测试版本，无法直接操作副本、更新和修改配置功能',
+      blue: '当前为蓝绿发布的蓝版本，无法直接操作副本、更新和修改配置功能',
+      green: '当前为蓝绿发布的绿版本，无法直接操作副本、更新和修改配置功能'
     }
     return roleMessages[props.version.versionRole || ''] || '当前版本无法操作此功能'
   }

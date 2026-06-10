@@ -2,40 +2,52 @@
   <div class="resource-quota-management">
     <!-- 容器选择 -->
     <div class="container-selector">
-      <label>选择容器：</label>
-      <ElSelect
-        v-model="selectedContainer"
-        placeholder="请选择容器"
-        style="width: 240px"
-        @change="handleContainerChange"
-      >
-        <ElOption
-          v-for="container in containers"
-          :key="container.containerName"
-          :label="container.containerName"
-          :value="container.containerName"
+      <div class="container-selector-row">
+        <label>选择容器：</label>
+        <ElSelect
+          v-model="selectedContainer"
+          placeholder="请选择容器"
+          style="width: 240px"
+          @change="handleContainerChange"
         >
-          <div class="container-option">
-            <span>{{ container.containerName }}</span>
-            <ElTag v-if="hasQuota(container)" size="small" type="success">已配置</ElTag>
-            <ElTag v-else size="small" type="info">未配置</ElTag>
-          </div>
-        </ElOption>
-      </ElSelect>
+          <ElOption
+            v-for="container in containers"
+            :key="container.containerName"
+            :label="container.containerName"
+            :value="container.containerName"
+          >
+            <div class="container-option">
+              <span>{{ container.containerName }}</span>
+              <ElTag v-if="hasQuota(container)" size="small" type="success">已配置</ElTag>
+              <ElTag v-else size="small" type="info">未配置</ElTag>
+            </div>
+          </ElOption>
+        </ElSelect>
 
-      <div class="selector-actions" v-if="selectedContainer">
-        <ElButton v-if="!editing" type="primary" size="small" @click="startEdit">
-          <Edit :size="14" />
-          编辑
-        </ElButton>
-        <template v-else>
-          <ElButton type="primary" size="small" :loading="saving" @click="handleSave">
-            <Save :size="14" />
-            保存
+        <div class="selector-actions" v-if="selectedContainer">
+          <ElButton v-if="!editing" type="primary" size="small" @click="startEdit">
+            <Edit :size="14" />
+            编辑
           </ElButton>
-          <ElButton size="small" @click="handleCancel">取消</ElButton>
-        </template>
+          <template v-else>
+            <ElButton
+              type="primary"
+              size="small"
+              :loading="saving"
+              :disabled="saveDisabledByValidation"
+              @click="handleSave"
+            >
+              <Save :size="14" />
+              保存
+            </ElButton>
+            <ElButton size="small" @click="handleCancel">取消</ElButton>
+          </template>
+        </div>
       </div>
+      <p v-if="editing && quotaInconsistencies.length" class="save-blocked-hint">
+        配置未通过校验，不会请求保存接口。请先改内存/CPU，使「配额预览」中无红色错误，例如将误填的
+        <code>10000Ti</code> 改为 <code>100Mi</code> 或 <code>512Mi</code>，并保证 Requests ≤ Limits。
+      </p>
     </div>
 
     <!-- 加载状态 -->
@@ -267,9 +279,19 @@
 
             <!-- 配额状态提示 -->
             <div class="quota-status">
-              <div v-if="isQuotaValid()" class="status-item success">
+              <div v-if="quotaInconsistencies.length" class="status-issues">
+                <div
+                  v-for="(msg, i) in quotaInconsistencies"
+                  :key="i"
+                  class="status-item danger"
+                >
+                  <AlertTriangle :size="16" />
+                  <span>{{ msg }}</span>
+                </div>
+              </div>
+              <div v-else-if="isQuotaValid()" class="status-item success">
                 <CheckCircle :size="16" />
-                <span>配额配置有效</span>
+                <span>已填写项下未发现明显的请求/限制矛盾或单位异常</span>
               </div>
               <div v-else class="status-item warning">
                 <AlertCircle :size="16" />
@@ -286,7 +308,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, watch, onMounted } from 'vue'
+  import { ref, watch, onMounted, computed } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import {
     Cpu,
@@ -308,6 +330,7 @@
     type ResourceRequirements
   } from '@/api'
   import ResourceInput from '@/views/workspace/management/subpage/dialog/components/ResourceInput.vue'
+  import { getQuotaInconsistencies } from '@/utils/k8sResourceQuantity'
 
   interface Props {
     version: OnecProjectVersion
@@ -385,6 +408,26 @@
   const handleSave = async () => {
     if (!selectedContainer.value) return
 
+    const issues = getQuotaInconsistencies({
+      requests: {
+        cpu: currentQuota.value.requests.cpu,
+        memory: currentQuota.value.requests.memory
+      },
+      limits: {
+        cpu: currentQuota.value.limits.cpu,
+        memory: currentQuota.value.limits.memory
+      }
+    })
+    if (issues.length) {
+      ElMessage({
+        type: 'error',
+        message: issues.map((m, n) => `${n + 1}. ${m}`).join(' '),
+        duration: 10000,
+        showClose: true
+      })
+      return
+    }
+
     try {
       await ElMessageBox.confirm('确定要保存资源配额配置吗？', '确认保存', {
         confirmButtonText: '确定',
@@ -416,9 +459,15 @@
         }
       }
 
+      const selected = containers.value.find((c) => c.containerName === selectedContainer.value)
       await updateResourceQuotaApi(props.version.id, {
-        containerName: selectedContainer.value,
-        resources
+        containers: [
+          {
+            containerName: selectedContainer.value,
+            containerType: selected?.containerType || 'main',
+            resources
+          }
+        ]
       })
 
       ElMessage.success('资源配额保存成功')
@@ -428,6 +477,13 @@
     } catch (error: any) {
       if (error !== 'cancel') {
         console.error('[资源配额] 保存失败:', error)
+        const data = error?.response?.data
+        const msg =
+          (typeof data === 'string' && data) ||
+          (data && (data.message || data.msg || data.error)) ||
+          (error?.message && !String(error.message).includes('cancel') ? error.message : null) ||
+          '资源配额保存失败，请检查网络或接口返回'
+        ElMessage.error(String(msg))
       }
     } finally {
       saving.value = false
@@ -456,6 +512,23 @@
       currentQuota.value.limits.memory
     )
   }
+
+  const quotaInconsistencies = computed(() =>
+    getQuotaInconsistencies({
+      requests: {
+        cpu: currentQuota.value.requests.cpu,
+        memory: currentQuota.value.requests.memory
+      },
+      limits: {
+        cpu: currentQuota.value.limits.cpu,
+        memory: currentQuota.value.limits.memory
+      }
+    })
+  )
+
+  const saveDisabledByValidation = computed(
+    () => editing.value && saving.value === false && quotaInconsistencies.value.length > 0
+  )
 
   const applyCpuExample = (requests: string, limits: string) => {
     if (!editing.value) return
@@ -506,12 +579,38 @@
 
     .container-selector {
       display: flex;
-      align-items: center;
-      gap: 12px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
       padding: 16px 20px;
       background: #fff;
       border-bottom: 1px solid var(--el-border-color);
       flex-shrink: 0;
+
+      .container-selector-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .save-blocked-hint {
+        margin: 10px 0 0;
+        padding: 8px 10px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #b91c1c;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 6px;
+
+        code {
+          font-size: 11px;
+          padding: 0 4px;
+          background: #fff;
+          border-radius: 2px;
+        }
+      }
 
       label {
         font-weight: 500;
@@ -811,12 +910,19 @@
               background: white;
               border-radius: 6px;
 
+              .status-issues {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+              }
+
               .status-item {
                 display: flex;
-                align-items: center;
+                align-items: flex-start;
                 gap: 8px;
                 font-size: 13px;
                 font-weight: 500;
+                line-height: 1.45;
 
                 &.success {
                   color: #22c55e;
@@ -824,6 +930,10 @@
 
                 &.warning {
                   color: #f59e0b;
+                }
+
+                &.danger {
+                  color: #dc2626;
                 }
               }
             }

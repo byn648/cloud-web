@@ -1,4 +1,3 @@
-/** HTTP / 业务状态码常量（与 kube-nova-web 对齐，error 模块会用到扩展项） */
 export const ApiStatus = {
   success: 0,
   unauthorized: 401,
@@ -11,6 +10,6 @@ export const ApiStatus = {
   badGateway: 502,
   serviceUnavailable: 503,
   gatewayTimeout: 504
-} as const;
+} as const
 
-export type ApiStatusType = (typeof ApiStatus)[keyof typeof ApiStatus];
+export type ApiStatusType = (typeof ApiStatus)[keyof typeof ApiStatus]

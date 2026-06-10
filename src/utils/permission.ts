@@ -162,6 +162,26 @@ export function isSuperAdminUser(): boolean {
   }
 }
 
+/** 与项目中心等页一致：超管账号（角色 super_admin 或用户名 super_admin）可看全量项目 */
+export function isSuperAdminAccount(): boolean {
+  if (isSuperAdminUser()) {
+    return true;
+  }
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const raw = window.localStorage.getItem("userInfo");
+  if (!raw) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(raw) as { username?: unknown };
+    return String(parsed.username ?? "").toLowerCase() === "super_admin";
+  } catch {
+    return false;
+  }
+}
+
 export function getCachedPermissionSnapshot(): PermissionSnapshot | null {
   if (typeof window === "undefined") {
     return null;

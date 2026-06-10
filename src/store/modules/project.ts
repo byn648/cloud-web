@@ -1,7 +1,7 @@
 // src/store/modules/project.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getProjectsByUserApi } from '@/api'
+import { listProjectsForSelectors } from '@/api/manager/project'
 
 // ========== 类型定义 ==========
 export interface Project {
@@ -59,13 +59,13 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  // 与项目中心「工作空间」等项目下拉一致：仅当前用户所属项目
+  // 与项目中心同一接口：searchProjectApi 分页聚合（权限与可见范围由后端决定）
   const fetchProjects = async (name?: string) => {
     loading.value = true
     try {
-      const items = await getProjectsByUserApi({
-        name: name?.trim() || undefined
-      })
+      const nameTrim = name?.trim() || undefined
+      const items = await listProjectsForSelectors({ name: nameTrim })
+
       projects.value = (items ?? []).map((item) => ({
         id: item.id,
         name: item.name,

@@ -4,7 +4,7 @@
       <!-- 左侧 Tabs -->
       <div class="tabs-sidebar">
         <ElMenu :default-active="activeTab" @select="handleTabChange" class="config-menu">
-          <ElMenuItem index="env">
+          <ElMenuItem v-if="!hideEnv" index="env">
             <Database :size="16" />
             <span>环境变量</span>
           </ElMenuItem>
@@ -30,9 +30,9 @@
       <!-- 右侧内容区 -->
       <div class="config-content">
         <!-- 环境变量 -->
-        <div v-show="activeTab === 'env'" class="config-section">
+        <div v-show="activeTab === 'env' && !hideEnv" class="config-section">
           <EnvManagement
-            v-if="loadedTabs.env"
+            v-if="loadedTabs.env && !hideEnv"
             ref="envRef"
             :version="version"
             :workspace="workspace"
@@ -87,10 +87,12 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, watch, onMounted, nextTick } from 'vue'
+  import { ref, computed, watch, onMounted, nextTick } from 'vue'
+  import { useRoute } from 'vue-router'
   import { ElMessageBox } from 'element-plus'
   import { Database, Activity, Cpu, Server, HardDrive } from 'lucide-vue-next'
   import type { OnecProjectVersion, ProjectWorkspace, ProjectCluster } from '@/api'
+  import { isDemoApplicationContext } from '@/views/workspace/application-demo/create/demoNavigation'
   import EnvManagement from './advanced/EnvManagement.vue'
   import ProbesManagement from './advanced/ProbesManagement.vue'
   import ResourceQuotaManagement from './advanced/ResourceQuotaManagement.vue'
@@ -105,6 +107,9 @@
   }
 
   const props = defineProps<Props>()
+
+  const route = useRoute()
+  const hideEnv = computed(() => isDemoApplicationContext(route))
 
   const activeTab = ref('env')
   const pendingTab = ref('env')
@@ -237,6 +242,11 @@
 
   // 组件挂载时自动加载当前 tab
   onMounted(() => {
+    if (hideEnv.value && activeTab.value === 'env') {
+      activeTab.value = 'probes'
+      pendingTab.value = 'probes'
+    }
+
     const tab = activeTab.value as keyof typeof loadedTabs.value
     if (!loadedTabs.value[tab]) {
       loadedTabs.value[tab] = true

@@ -15,8 +15,26 @@ const PERMISSION_GUARD_PATHS = new Set<string>([
   "/system/role",
   "/system/api",
   "/system/permission",
-  "/system/menu"
+  "/system/menu",
+  "/workspace/application",
+  "/workspace/application/create",
+  "/workspace/workload/pod",
+  "/workspace/pod-manager"
 ]);
+
+function isWorkspaceApplicationRoute(path: string): boolean {
+  return path.startsWith("/workspace/workload/create/");
+}
+
+function resolvePermissionCheckPath(path: string): string {
+  if (path === "/workspace/application/create" || isWorkspaceApplicationRoute(path)) {
+    return "/workspace/application";
+  }
+  if (path === "/workspace/workload/pod" || path === "/workspace/pod-manager") {
+    return "/workspace/pod-manager";
+  }
+  return path;
+}
 
 const PERMISSION_ROUTE_ALIASES: Record<string, string[]> = {
   "/system/permission": ["/system/permission", "/system/api"],
@@ -82,13 +100,71 @@ const router = createRouter({
     },
     {
       path: "/workspace/application",
-      name: "WorkspaceApplication",
+      name: "ApplicationManagement",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/application-demo",
+      name: "ApplicationDemoCenter",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/application-demo/create",
+      name: "ApplicationDemoCreate",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/application-demo/create/deployment",
+      name: "ApplicationDemoCreateDeployment",
       component: () => import("../views/index/index.vue")
     },
     {
       path: "/workspace/application/create",
       name: "AppCreateManager",
       component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/workload/create/deployment",
+      name: "CreateDeployment",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/workload/create/statefulset",
+      name: "CreateStatefulSet",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/workload/create/daemonset",
+      name: "CreateDaemonSet",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/workload/create/cronjob",
+      name: "CreateCronJob",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/workload/create/job",
+      name: "CreateJob",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/workload/create/pod",
+      name: "CreatePod",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/pod-manager",
+      name: "PodManager",
+      component: () => import("../views/index/index.vue")
+    },
+    {
+      path: "/workspace/workload/pod",
+      redirect: "/workspace/pod-manager"
+    },
+    {
+      path: "/cluster/plugin-management",
+      redirect: HOME_PATH
     },
     {
       path: "/:pathMatch(.*)*",
@@ -123,10 +199,14 @@ router.beforeEach(async (to) => {
     return true;
   }
 
-  if (hasToken && PERMISSION_GUARD_PATHS.has(to.path)) {
+  const permissionPath = resolvePermissionCheckPath(to.path);
+  const needsPermissionGuard =
+    PERMISSION_GUARD_PATHS.has(to.path) || isWorkspaceApplicationRoute(to.path);
+
+  if (hasToken && needsPermissionGuard) {
     try {
       const snapshot = await ensurePermissionSnapshot();
-      const candidatePaths = PERMISSION_ROUTE_ALIASES[to.path] ?? [to.path];
+      const candidatePaths = PERMISSION_ROUTE_ALIASES[permissionPath] ?? [permissionPath];
       const hasRoutePermission = candidatePaths.some((path) => hasPathPermission(path, snapshot.paths));
       if (!hasRoutePermission) {
         return HOME_PATH;
@@ -141,4 +221,3 @@ router.beforeEach(async (to) => {
 });
 
 export default router;
-export { router };

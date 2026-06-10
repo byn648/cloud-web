@@ -27,6 +27,9 @@ export interface AddApplicationResourceRequest {
   resourceType: ResourceType // 资源类型
   resourceYamlStr: string // 对应类型的yaml字符串
   description?: string // 描述（最多200字符）
+  schedulePlanId?: string // 分层强化学习调度计划ID
+  targetClusterUuid?: string // 调度算法选择的目标集群UUID
+  schedulePlanJson?: string // 调度计划快照，后端调度服务接入前可用于透传
 }
 
 /** 项目应用信息 */

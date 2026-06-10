@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="application-management">
     <!-- 面包屑式选择器 -->
     <div class="breadcrumb-selector">
@@ -25,45 +25,7 @@
 
         <div class="breadcrumb-separator">
           <ChevronRight :size="16" />
-      </div>
-
-        <!-- 集群选择 -->
-        <div class="breadcrumb-item">
-          <span class="breadcrumb-label">
-            <Server :size="14" />
-            集群
-          </span>
-          <ElSelect
-            v-model="managementStore.selectedClusterId"
-            :placeholder="selectedProject ? '选择集群' : '请先选择项目'"
-            clearable
-            size="default"
-            :disabled="!selectedProject"
-            :loading="loadingClusters"
-            @change="handleClusterChange"
-            @clear="handleClusterClear"
-            popper-class="cluster-dropdown"
-            class="breadcrumb-select"
-          >
-            <ElOption
-              v-for="cluster in clusters"
-              :key="cluster.id"
-              :label="cluster.clusterName"
-              :value="cluster.id"
-            >
-              <div class="cluster-option">
-                <span class="option-name">{{ cluster.clusterName }}</span>
-                <span class="option-meta">
-                  CPU {{ cluster.cpuCapacity }}核 · 内存 {{ cluster.memCapacity }}GB
-                </span>
         </div>
-            </ElOption>
-          </ElSelect>
-      </div>
-
-        <div class="breadcrumb-separator">
-          <ChevronRight :size="16" />
-      </div>
 
         <!-- 工作空间选择 -->
         <div class="breadcrumb-item">
@@ -76,7 +38,7 @@
             placeholder="选择工作空间"
             clearable
             size="default"
-            :disabled="!managementStore.selectedClusterId"
+            :disabled="!selectedProject"
             :loading="loadingWorkspaces"
             @change="handleWorkspaceChange"
             @clear="handleWorkspaceClear"
@@ -94,9 +56,14 @@
                   <Box :size="16" class="workspace-icon" />
                   <span class="option-name">{{ workspace.name }}</span>
         </div>
-                <ElTag size="small" type="info" class="workspace-tag">{{
-                    workspace.namespace
-                  }}</ElTag>
+                <div class="workspace-tags">
+                  <ElTag size="small" type="info" class="workspace-tag">
+                    {{ workspace.namespace }}
+                  </ElTag>
+                  <ElTag size="small" type="success" class="workspace-tag">
+                    {{ workspace.boundClusters.length }} 集群
+                  </ElTag>
+                </div>
         </div>
             </ElOption>
           </ElSelect>
@@ -262,6 +229,7 @@
                     :workspace="managementStore.selectedWorkspace"
                     :refresh-trigger="refreshTriggers.version"
                     @refresh="loadApplications"
+                    @application-deleted="handleVersionApplicationDeleted"
                   />
                 </ElTabPane>
 
@@ -361,14 +329,15 @@ import {
     Briefcase,
     Package,
     ChevronRight,
-    Filter
+    Filter,
+    Info
   } from 'lucide-vue-next'
   import { useProjectStore } from '@/store/modules/project'
   import { useApplicationManagementStore } from '@/store/modules/applicationManagement'
   import {
     searchProjectClusterApi,
     searchProjectWorkspaceApi,
-  searchApplicationApi,
+    searchApplicationApi,
     type ProjectCluster,
     type ProjectWorkspace,
     type OnecProjectApplication
@@ -380,9 +349,14 @@ import {
   import IngressManagement from './components/tabs/IngressManagement.vue'
   import FlaggerManagement from './components/tabs/FlaggerManagement.vue'
   import OperationAudit from './components/tabs/OperationAudit.vue'
-  import { getCpuInCore, parseWorkspaceMemGiB } from '@/utils/resource'
-  import { getProjectWorkspaceApi } from '@/api'
-  import { ElMessageBox } from 'element-plus'
+  import {
+    computeProjectClusterSchedule,
+    CLUSTER_SCHEDULE_TOOLTIP,
+    formatClusterSelectLabel as buildClusterSelectScheduleLabel,
+    formatEnergyPriceLabel,
+    formatScheduleScore,
+    formatStorageSocLabel
+  } from '@/scheduling'
   defineOptions({ name: 'ApplicationManagement' })
 
   const router = useRouter()
@@ -452,8 +426,55 @@ import {
     }
   }
 
+  /** 未选项目时禁用集群下拉 */
+  const clusterSelectDisabled = computed(() => !selectedProject.value)
+
+  const clusterSelectPlaceholder = computed(() => {
+    if (!selectedProject.value) {
+      return '请先选择项目'
+    }
+    return '选择集群'
+  })
+
+  const clusterScheduleTooltip = CLUSTER_SCHEDULE_TOOLTIP
+
   const clusters = ref<ProjectCluster[]>([])
-  const workspaces = ref<ProjectWorkspace[]>([])
+
+  const clusterSchedule = computed(() => computeProjectClusterSchedule(clusters.value, null))
+
+  const recommendedClusterId = computed(() => clusterSchedule.value.recommendedClusterId)
+
+  function getSchedulingScoreForCluster(cluster: ProjectCluster) {
+    return clusterSchedule.value.getScore(cluster)
+  }
+
+  function getScheduleRank(cluster: ProjectCluster) {
+    return clusterSchedule.value.getRank(cluster)
+  }
+
+  function formatClusterSelectLabel(cluster: ProjectCluster) {
+    return buildClusterSelectScheduleLabel(
+      cluster,
+      clusterSchedule.value.getScore(cluster)
+    )
+  }
+
+  interface BoundWorkspaceCluster {
+    id: number
+    projectClusterId: number
+    clusterUuid: string
+    clusterName: string
+  }
+
+  interface LogicalProjectWorkspace extends ProjectWorkspace {
+    key: string
+    bindingIds: number[]
+    projectClusterIds: number[]
+    boundClusters: BoundWorkspaceCluster[]
+    sourceRows: ProjectWorkspace[]
+  }
+
+  const workspaces = ref<LogicalProjectWorkspace[]>([])
   const applications = ref<OnecProjectApplication[]>([])
 
   const loadingClusters = ref(false)
@@ -470,11 +491,11 @@ import {
   const isResizing = ref(false)
 
   const canCreate = computed(() => {
-    return !!managementStore.selectedCluster && !!managementStore.selectedWorkspace
+    return !!selectedProject.value && !!managementStore.selectedWorkspace
   })
 
   // 🔥 统一 resourceType 为小写
-  const normalizeResourceType = (type: string): string => {
+  const normalizeResourceType = (type?: string | null): string => {
     return type?.toLowerCase() || ''
   }
 
@@ -504,11 +525,12 @@ import {
 
   // 🔥 过滤应用列表（统一小写比较）
   const filteredApplications = computed(() => {
-    if (managementStore.selectedResourceType === 'all') {
+    const selectedType = normalizeResourceType(managementStore.selectedResourceType)
+    if (!selectedType || selectedType === 'all') {
       return applications.value
     }
     return applications.value.filter((app) => {
-      return normalizeResourceType(app.resourceType) === managementStore.selectedResourceType
+      return normalizeResourceType(app.resourceType) === selectedType
     })
   })
 
@@ -572,9 +594,10 @@ import {
       applications.value = []
       resetLoadedTabs()
 
-      // 只有在项目存在时才加载集群
+      // 只有在项目存在时才加载候选集群与工作空间；集群不再作为用户创建入口
       if (newProject) {
         await loadClusters()
+        await loadWorkspaces()
       }
     }
   })
@@ -594,11 +617,10 @@ import {
       }
 
       if (newId) {
-        // 不要静默加载，这样可以触发UI更新
-        await loadWorkspaces()
-      } else {
-        workspaces.value = []
-        applications.value = []
+        const cluster = clusters.value.find((item) => item.id === newId)
+        if (cluster) {
+          managementStore.setCluster(cluster, true)
+        }
       }
     }
   )
@@ -618,6 +640,11 @@ import {
       }
 
       if (newId) {
+        const workspace = resolveLogicalWorkspace(newId)
+        if (workspace && managementStore.selectedWorkspace?.id !== workspace.id) {
+          managementStore.setWorkspace(workspace, true)
+          syncClusterFromWorkspace(workspace)
+        }
         await loadApplications()
       } else {
         applications.value = []
@@ -653,32 +680,18 @@ import {
     loadingClusters.value = true
 
     try {
+      // 集群列表来自项目-集群绑定；能源字段 onec_cluster_energy_profile 由后端在 search 中合并
       const response = await searchProjectClusterApi({
         projectId: selectedProject.value.id
       })
       clusters.value = response || []
 
-      // 🔥 关键修复：只在初始化时恢复缓存的集群
-      if (isInitializing.value) {
-        const savedClusterId = loadFromStorage(STORAGE_KEY_CLUSTER)
-        if (savedClusterId && typeof savedClusterId === 'number') {
-          const cluster = clusters.value.find((c) => c.id === savedClusterId)
-          if (cluster) {
-            // 静默设置，不触发watch
-            managementStore.setCluster(cluster, true)
-          } else {
-            console.warn('⚠️ 缓存的集群不存在，清空选择')
-            saveToStorage(STORAGE_KEY_CLUSTER, null)
-            saveToStorage(STORAGE_KEY_WORKSPACE, null)
-            saveToStorage(STORAGE_KEY_APPLICATION, null)
-            saveToStorage(STORAGE_KEY_TAB, null)
-          }
-        }
-      }
+      // 集群只作为工作空间授权范围和后端旧字段来源，不再要求用户手动选择。
+      managementStore.setCluster(null, true)
     } catch (error) {
       console.error('❌ 加载集群失败:', error)
       clusters.value = []
-  } finally {
+    } finally {
       loadingClusters.value = false
     }
   }
@@ -714,9 +727,150 @@ import {
     saveToStorage(STORAGE_KEY_TAB, null)
   }
 
+  function syncClusterFromWorkspace(workspace: ProjectWorkspace | null) {
+    if (!workspace) {
+      managementStore.setCluster(null, true)
+      saveToStorage(STORAGE_KEY_CLUSTER, null)
+      return
+    }
+
+    const cluster =
+      clusters.value.find((item) => item.id === workspace.projectClusterId) ||
+      clusters.value.find((item) => item.clusterUuid === workspace.clusterUuid) ||
+      null
+
+    if (cluster) {
+      managementStore.setCluster(cluster, true)
+      saveToStorage(STORAGE_KEY_CLUSTER, cluster.id)
+    } else {
+      managementStore.setCluster(
+        {
+          id: workspace.projectClusterId,
+          clusterUuid: workspace.clusterUuid,
+          clusterName: workspace.clusterName,
+          projectId: workspace.projectId,
+          cpuLimit: 0,
+          cpuOvercommitRatio: 1,
+          cpuCapacity: 0,
+          cpuAllocated: 0,
+          memLimit: 0,
+          memOvercommitRatio: 1,
+          memCapacity: 0,
+          memAllocated: 0,
+          storageLimit: 0,
+          storageAllocated: 0,
+          gpuLimit: 0,
+          gpuOvercommitRatio: 1,
+          gpuCapacity: 0,
+          gpuAllocated: 0,
+          podsLimit: 0,
+          podsAllocated: 0,
+          configmapLimit: 0,
+          configmapAllocated: 0,
+          secretLimit: 0,
+          secretAllocated: 0,
+          pvcLimit: 0,
+          pvcAllocated: 0,
+          ephemeralStorageLimit: 0,
+          ephemeralStorageAllocated: 0,
+          serviceLimit: 0,
+          serviceAllocated: 0,
+          loadbalancersLimit: 0,
+          loadbalancersAllocated: 0,
+          nodeportsLimit: 0,
+          nodeportsAllocated: 0,
+          deploymentsLimit: 0,
+          deploymentsAllocated: 0,
+          jobsLimit: 0,
+          jobsAllocated: 0,
+          cronjobsLimit: 0,
+          cronjobsAllocated: 0,
+          daemonsetsLimit: 0,
+          daemonsetsAllocated: 0,
+          statefulsetsLimit: 0,
+          statefulsetsAllocated: 0,
+          ingressesLimit: 0,
+          ingressesAllocated: 0,
+          createdBy: '',
+          updatedBy: '',
+          createdAt: 0,
+          updatedAt: 0
+        },
+        true
+      )
+      saveToStorage(STORAGE_KEY_CLUSTER, workspace.projectClusterId)
+    }
+  }
+
+  function getWorkspaceGroupKey(workspace: Pick<ProjectWorkspace, 'id' | 'namespace' | 'name'>) {
+    return `${workspace.namespace || workspace.id}::${workspace.name || ''}`
+  }
+
+  function groupWorkspacesByNamespace(rows: ProjectWorkspace[]): LogicalProjectWorkspace[] {
+    const grouped = new Map<string, LogicalProjectWorkspace>()
+
+    rows.forEach((workspace) => {
+      const key = getWorkspaceGroupKey(workspace)
+      const boundCluster: BoundWorkspaceCluster = {
+        id: workspace.id,
+        projectClusterId: workspace.projectClusterId,
+        clusterUuid: workspace.clusterUuid,
+        clusterName: workspace.clusterName
+      }
+      const existing = grouped.get(key)
+
+      if (!existing) {
+        grouped.set(key, {
+          ...workspace,
+          key,
+          bindingIds: [workspace.id],
+          projectClusterIds: [workspace.projectClusterId],
+          boundClusters: [boundCluster],
+          sourceRows: [workspace]
+        })
+        return
+      }
+
+      existing.bindingIds.push(workspace.id)
+      existing.projectClusterIds.push(workspace.projectClusterId)
+      existing.boundClusters.push(boundCluster)
+      existing.sourceRows.push(workspace)
+    })
+
+    return Array.from(grouped.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  function resolveLogicalWorkspace(workspaceId?: number | null) {
+    const selected = managementStore.selectedWorkspace as LogicalProjectWorkspace | null
+    const id = workspaceId ?? managementStore.selectedWorkspaceId ?? selected?.id
+
+    if (id) {
+      const byBindingId = workspaces.value.find((workspace) => workspace.bindingIds.includes(id))
+      if (byBindingId) {
+        return byBindingId
+      }
+    }
+
+    if (selected) {
+      const selectedKey =
+        selected.key ||
+        getWorkspaceGroupKey({
+          id: selected.id,
+          namespace: selected.namespace,
+          name: selected.name
+        })
+      const byKey = workspaces.value.find((workspace) => workspace.key === selectedKey)
+      if (byKey) {
+        return byKey
+      }
+    }
+
+    return null
+  }
+
   // 🔥 修复：加载工作空间列表
   const loadWorkspaces = async () => {
-    if (!managementStore.selectedClusterId) {
+    if (!selectedProject.value) {
       workspaces.value = []
       return
     }
@@ -728,19 +882,32 @@ import {
     loadingWorkspaces.value = true
 
     try {
-      const response = await searchProjectWorkspaceApi({
-        projectClusterId: managementStore.selectedClusterId
-      })
-      workspaces.value = response || []
+      if (clusters.value.length === 0) {
+        await loadClusters()
+      }
+
+      const workspaceLists = await Promise.all(
+        clusters.value.map((cluster) =>
+          searchProjectWorkspaceApi({
+            projectClusterId: cluster.id
+          }).catch((error) => {
+            console.warn(`加载集群 ${cluster.clusterName} 的工作空间失败`, error)
+            return []
+          })
+        )
+      )
+      const merged = workspaceLists.flat()
+      workspaces.value = groupWorkspacesByNamespace(merged)
 
       // 🔥 关键修复：只在初始化时恢复缓存的工作空间
       if (isInitializing.value) {
         const savedWorkspaceId = loadFromStorage(STORAGE_KEY_WORKSPACE)
         if (savedWorkspaceId && typeof savedWorkspaceId === 'number') {
-          const workspace = workspaces.value.find((w) => w.id === savedWorkspaceId)
+          const workspace = resolveLogicalWorkspace(savedWorkspaceId)
           if (workspace) {
             // 静默设置，不触发watch
             managementStore.setWorkspace(workspace, true)
+            syncClusterFromWorkspace(workspace)
           } else {
             console.warn('⚠️ 缓存的工作空间不存在，清空选择')
             saveToStorage(STORAGE_KEY_WORKSPACE, null)
@@ -759,16 +926,17 @@ import {
 
   // 🔥 工作空间切换
   const handleWorkspaceChange = (workspaceId: number | null) => {
-    saveToStorage(STORAGE_KEY_WORKSPACE, workspaceId)
-
     if (workspaceId) {
-      const workspace = workspaces.value.find((w) => w.id === workspaceId)
+      const workspace = resolveLogicalWorkspace(workspaceId)
       if (workspace) {
+        saveToStorage(STORAGE_KEY_WORKSPACE, workspace.id)
+        syncClusterFromWorkspace(workspace)
         managementStore.setWorkspace(workspace)
         resetLoadedTabs()
         loadApplications()
       }
     } else {
+      saveToStorage(STORAGE_KEY_WORKSPACE, null)
       saveToStorage(STORAGE_KEY_APPLICATION, null)
       saveToStorage(STORAGE_KEY_TAB, null)
     }
@@ -777,6 +945,7 @@ import {
   // 🔥 清空工作空间
   const handleWorkspaceClear = () => {
     managementStore.setWorkspace(null)
+    syncClusterFromWorkspace(null)
     applications.value = []
     resetLoadedTabs()
 
@@ -787,14 +956,15 @@ import {
 
   // 🔥 资源类型切换
   const handleResourceTypeChange = () => {
-    saveToStorage(STORAGE_KEY_RESOURCE_TYPE, managementStore.selectedResourceType)
-    managementStore.setResourceType(managementStore.selectedResourceType)
+    const selectedType = normalizeResourceType(managementStore.selectedResourceType) || 'all'
+    saveToStorage(STORAGE_KEY_RESOURCE_TYPE, selectedType)
+    managementStore.setResourceType(selectedType)
 
-    if (managementStore.selectedApplication && managementStore.selectedResourceType !== 'all') {
+    if (managementStore.selectedApplication && selectedType !== 'all') {
       const appResourceType = normalizeResourceType(
         managementStore.selectedApplication.resourceType
       )
-      if (appResourceType !== managementStore.selectedResourceType) {
+      if (appResourceType !== selectedType) {
         managementStore.setApplication(null)
         resetLoadedTabs()
         saveToStorage(STORAGE_KEY_APPLICATION, null)
@@ -803,9 +973,17 @@ import {
     }
   }
 
+  /** 版本管理内删除整个服务后：清空选中并刷新列表（与 kube-nova 行为一致） */
+  async function handleVersionApplicationDeleted() {
+    managementStore.setApplication(null)
+    saveToStorage(STORAGE_KEY_APPLICATION, null)
+    await loadApplications()
+  }
+
   // 🔥 修复：加载应用列表
   const loadApplications = async () => {
-    if (!managementStore.selectedWorkspace) {
+    const workspace = resolveLogicalWorkspace()
+    if (!workspace) {
       applications.value = []
       return
     }
@@ -817,10 +995,21 @@ import {
     loadingApplications.value = true
 
     try {
-      const response = await searchApplicationApi({
-        workspaceId: managementStore.selectedWorkspace.id
-      })
-      applications.value = response || []
+      if (managementStore.selectedWorkspace?.id !== workspace.id) {
+        managementStore.setWorkspace(workspace, true)
+      }
+      const workspaceIds = workspace.bindingIds?.length ? workspace.bindingIds : [workspace.id]
+      const responses = await Promise.all(
+        workspaceIds.map((workspaceId) =>
+          searchApplicationApi({ workspaceId }).catch((error) => {
+            console.warn(`加载工作空间 ${workspaceId} 的服务失败`, error)
+            return []
+          })
+        )
+      )
+      const unique = new Map<number, OnecProjectApplication>()
+      responses.flat().forEach((application) => unique.set(application.id, application))
+      applications.value = Array.from(unique.values())
 
       // 🔥 关键修复：只在初始化时恢复缓存的应用
       if (isInitializing.value) {
@@ -919,11 +1108,6 @@ import {
       return
     }
 
-    if (!managementStore.selectedCluster) {
-      ElMessage.warning('请先选择集群')
-      return
-    }
-
     if (!managementStore.selectedWorkspace) {
       ElMessage.warning('请先选择工作空间')
       return
@@ -932,57 +1116,24 @@ import {
     creatingService.value = true
 
     try {
-      // 🔥 新增：获取工作空间详情检查配额
-      const workspaceDetail = await getProjectWorkspaceApi(managementStore.selectedWorkspace.id)
-
-      // 工作空间接口：cpu 为核数或毫核字符串；memAllocated 为 GiB 标量（数字/纯数字串），勿用 parseMemory(数字)（会被当成字节）
-      const cpuCores = getCpuInCore(workspaceDetail.cpuAllocated)
-      const memGiB = parseWorkspaceMemGiB(workspaceDetail.memAllocated)
-      const podsValue = workspaceDetail.podsAllocated
-
-      // 检查资源是否满足最低要求
-      const hasInsufficientQuota = cpuCores < 1 || memGiB < 1 || podsValue < 1
-
-      if (hasInsufficientQuota) {
-        const insufficientResources = []
-        if (cpuCores < 1) insufficientResources.push('CPU配额不足（需要 ≥ 1核）')
-        if (memGiB < 1) insufficientResources.push('内存配额不足（需要 ≥ 1Gi）')
-        if (podsValue < 1) insufficientResources.push('Pod配额不足（需要 ≥ 1个）')
-
-        await ElMessageBox.confirm(
-          `当前工作空间 "${workspaceDetail.name}" 的资源配额不足，无法创建应用：\n\n${insufficientResources.join('\n')}\n\n是否前往工作空间管理页面配置资源配额？`,
-          '资源配额不足',
-          {
-            confirmButtonText: '前往配置',
-            cancelButtonText: '取消',
-            type: 'warning',
-            customClass: 'quota-warning-message-box'
-          }
-        )
-
-        // 用户确认后跳转到工作空间管理页面
-        router.push({
-          name: 'WorkspaceManagement',
-          params: { id: workspaceDetail.id }
-        })
-
-        return
-      }
-
-      // 配额充足，继续创建流程
+      syncClusterFromWorkspace(managementStore.selectedWorkspace)
+      const selectedWorkspace = managementStore.selectedWorkspace
+      const selectedCluster = managementStore.selectedCluster
+      const resourceClusterId = selectedWorkspace.projectClusterId || selectedCluster?.id || 0
       const clusterUuid =
-        managementStore.selectedCluster.clusterUuid ||
-        managementStore.selectedCluster.uuid ||
-        `cluster-${managementStore.selectedCluster.id}`
+        selectedWorkspace.clusterUuid ||
+        selectedCluster?.clusterUuid ||
+        selectedCluster?.uuid ||
+        `cluster-${resourceClusterId}`
 
       router.push({
         name: 'AppCreateManager',
         query: {
-          resourceClusterId: String(managementStore.selectedCluster.id),
+          resourceClusterId: String(resourceClusterId),
           clusterUuid: clusterUuid,
           appProjectId: String(selectedProject.value.id),
-          workspaceId: String(managementStore.selectedWorkspace.id),
-          namespace: managementStore.selectedWorkspace.namespace || 'default',
+          workspaceId: String(selectedWorkspace.id),
+          namespace: selectedWorkspace.namespace || 'default',
           mode: 'createApp'
         }
       })
@@ -1093,17 +1244,14 @@ import {
         return
       }
 
-      // 加载集群
+      // 加载集群（开推荐时 loadClusters 内会 apply 自动选）
       await loadClusters()
 
-      // 如果有选中的集群，加载工作空间
-      if (managementStore.selectedClusterId) {
-        await loadWorkspaces()
+      await loadWorkspaces()
 
-        // 如果有选中的工作空间，加载应用
-        if (managementStore.selectedWorkspaceId) {
-          await loadApplications()
-        }
+      // 如果有选中的工作空间，加载应用
+      if (managementStore.selectedWorkspaceId) {
+        await loadApplications()
       }
     } catch (error) {
       console.error('❌ 页面初始化失败:', error)
@@ -1164,8 +1312,8 @@ import {
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      padding: 10px 16px;
-      margin-bottom: 16px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
       background: white;
       border-radius: 8px;
       border: 1px solid #e4e7ed;
@@ -1175,7 +1323,9 @@ import {
         flex: 1;
         display: flex;
         align-items: center;
-        gap: 8px;
+        align-content: center;
+        gap: 8px 10px;
+        row-gap: 8px;
         min-width: 0;
         flex-wrap: wrap;
 
@@ -1184,6 +1334,51 @@ import {
           align-items: center;
           gap: 8px;
           min-width: 0;
+
+          &.cluster-breadcrumb {
+            .cluster-inline {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              flex-wrap: wrap;
+              gap: 6px 10px;
+              min-width: 0;
+            }
+
+            .cluster-schedule-hint {
+              display: inline-flex;
+              align-items: center;
+              color: #909399;
+              cursor: help;
+              flex-shrink: 0;
+              line-height: 1;
+
+              &:focus {
+                outline: none;
+              }
+            }
+
+            .recommend-inline {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              flex-shrink: 0;
+            }
+
+            .recommend-hint {
+              font-size: 12px;
+              color: #909399;
+              cursor: default;
+              user-select: none;
+              line-height: 1;
+            }
+
+            .cluster-breadcrumb-select {
+              min-width: 180px;
+              max-width: 280px;
+              width: 220px;
+            }
+          }
 
           .breadcrumb-label {
             display: flex;
@@ -1405,12 +1600,17 @@ import {
             min-width: 130px;
             max-width: 200px;
           }
+
+          &.cluster-breadcrumb .cluster-breadcrumb-select {
+            width: 180px;
+            min-width: 130px;
+            max-width: 200px;
+          }
         }
       }
     }
   }
 </style>
-
 <style lang="scss">
   /* 集群下拉菜单样式 */
   .cluster-dropdown {
@@ -1462,6 +1662,29 @@ import {
       height: auto !important;
       box-sizing: border-box;
 
+      &.is-platform-recommend {
+        background: linear-gradient(90deg, rgba(103, 194, 58, 0.1) 0%, transparent 100%) !important;
+        border-left: 3px solid #67c23a;
+        padding-left: 13px !important;
+      }
+
+      .recommend-badge {
+        margin-left: 6px;
+        vertical-align: middle;
+        font-size: 11px !important;
+        height: 20px;
+        line-height: 18px;
+      }
+
+      .option-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        flex-shrink: 0;
+        text-align: right;
+      }
+
       .option-name {
         font-weight: 500;
         color: #303133;
@@ -1487,7 +1710,13 @@ import {
         padding: 0 !important;
         vertical-align: middle;
       }
+
+      .option-meta.sub.muted {
+        font-size: 11px;
+        opacity: 0.85;
+      }
     }
+
   }
 
   /* 工作空间下拉菜单样式 */
@@ -1572,6 +1801,13 @@ import {
           padding: 0 !important;
           vertical-align: middle;
         }
+      }
+
+      .workspace-tags {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 6px;
       }
 
       .workspace-tag {

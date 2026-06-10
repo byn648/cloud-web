@@ -98,6 +98,7 @@ export interface PodResourceList {
   restarts: number
   age: string
   node: string
+  cluster?: string
   podIP: string
   labels: Record<string, string>
   creationTime: number
@@ -228,6 +229,8 @@ export interface ResourceRequirements {
 /** 容器资源配额 */
 export interface ContainerResources {
   containerName: string
+  /** 与 workload-api CommContainerResources 一致：init / main / ephemeral */
+  containerType?: string
   resources: ResourceRequirements
 }
 
@@ -236,10 +239,15 @@ export interface ResourcesResponse {
   containers: ContainerResources[]
 }
 
-/** 修改资源配额请求 */
+/**
+ * 修改资源配额请求（与 workload-api `CommUpdateResourcesRequest` 一致：body 为 `containers` 数组）
+ */
 export interface UpdateResourcesRequest {
-  containerName: string
-  resources: ResourceRequirements
+  containers: {
+    containerName: string
+    containerType?: string
+    resources: ResourceRequirements
+  }[]
 }
 
 // ==================== 健康检查相关 ====================

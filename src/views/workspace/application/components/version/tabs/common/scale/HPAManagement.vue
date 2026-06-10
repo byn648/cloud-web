@@ -38,10 +38,10 @@
               <span>基础配置</span>
             </div>
 
-            <ElFormItem label="HPA 名称" prop="name">
+            <ElFormItem label="策略名称" prop="name">
               <template #label>
-                <span>HPA 名称</span>
-                <ElTooltip content="HPA 资源的名称，创建后不可修改" placement="top">
+                <span>策略名称</span>
+                <ElTooltip content="策略的名称，创建后不可修改" placement="top">
                   <HelpCircle :size="14" class="label-help-icon" />
                 </ElTooltip>
               </template>
@@ -51,7 +51,7 @@
             <ElFormItem label="命名空间">
               <template #label>
                 <span>命名空间</span>
-                <ElTooltip content="HPA 所在的命名空间，不可修改" placement="top">
+                <ElTooltip content="弹性策略所在的命名空间，不可修改" placement="top">
                   <HelpCircle :size="14" class="label-help-icon" />
                 </ElTooltip>
               </template>
@@ -61,7 +61,7 @@
             <ElFormItem label="目标资源">
               <template #label>
                 <span>目标资源</span>
-                <ElTooltip content="HPA 控制的工作负载资源，不可修改" placement="top">
+                <ElTooltip content="弹性策略控制的工作负载资源，不可修改" placement="top">
                   <HelpCircle :size="14" class="label-help-icon" />
                 </ElTooltip>
               </template>
@@ -70,11 +70,11 @@
               </ElInput>
             </ElFormItem>
 
-            <ElFormItem label="副本数范围" required>
+            <ElFormItem :label="replicaRangeLabel" required>
               <template #label>
-                <span>副本数范围</span>
+                <span>{{ replicaRangeLabel }}</span>
                 <ElTooltip
-                  content="HPA 自动扩缩容的副本数范围。最小值至少为 1，最大值不超过 100"
+                  :content="replicaRangeTooltip"
                   placement="top"
                 >
                   <HelpCircle :size="14" class="label-help-icon" />
@@ -263,7 +263,7 @@
               <div class="form-actions">
                 <ElButton type="primary" size="large" :loading="submitting" @click="handleSubmit">
                   <Check :size="16" v-if="!submitting" />
-                  {{ submitting ? '创建中...' : '创建 HPA' }}
+                  {{ submitting ? '创建中...' : '创建弹性策略' }}
                 </ElButton>
                 <ElButton size="large" @click="handleReset">
                   <RotateCcw :size="16" />
@@ -290,7 +290,7 @@
           <div class="yaml-actions">
             <ElButton type="primary" size="large" :loading="submitting" @click="handleSubmit">
               <Check :size="16" v-if="!submitting" />
-              {{ submitting ? '创建中...' : '创建 HPA' }}
+              {{ submitting ? '创建中...' : '创建弹性策略' }}
             </ElButton>
             <ElButton size="large" @click="syncYamlToForm">
               <Upload :size="16" />
@@ -307,11 +307,11 @@
           <template #title>
             <div class="alert-content">
               <TrendingUp :size="16" />
-              <span>暂未配置 HPA</span>
+              <span>暂未配置弹性策略</span>
             </div>
           </template>
           <template #default>
-            <p>HPA 可根据 CPU/内存等指标自动调整 Pod 副本数，实现水平自动扩缩容。</p>
+            <p>弹性策略可根据 CPU/内存等指标自动调整 Pod 副本数，实现水平自动扩缩容。</p>
           </template>
         </ElAlert>
 
@@ -349,7 +349,7 @@
             <div class="info-item">
               <div class="info-item-header">
                 <CheckCircle :size="14" class="icon-info" />
-                <strong>副本数范围</strong>
+                <strong>{{ replicaRangeLabel }}</strong>
               </div>
               <ul>
                 <li>最小副本数至少为 <strong>1</strong></li>
@@ -364,8 +364,8 @@
                 <strong>重要提示</strong>
               </div>
               <ul>
-                <li><strong>HPA 会覆盖手动设置的副本数</strong>，请谨慎配置</li>
-                <li>不要同时使用 <strong>HPA 和 VPA 的 Auto 模式</strong></li>
+                <li><strong>弹性策略会覆盖手动设置的副本数</strong>，请谨慎配置</li>
+                <li>不要同时使用 <strong>弹性策略和 VPA 的 Auto 模式</strong></li>
                 <li>建议设置合理的<strong>稳定窗口</strong>避免频繁扩缩容</li>
                 <li>扩缩容会有一定延迟（默认 15 秒采集一次指标）</li>
               </ul>
@@ -380,7 +380,7 @@
                 <li>优先使用 <strong>CPU 利用率</strong>作为扩缩容指标</li>
                 <li>缩容稳定窗口建议设置为 <strong>300 秒</strong></li>
                 <li>扩容稳定窗口可以设置为 <strong>0 秒</strong>快速响应</li>
-                <li>定期检查 HPA 状态和推荐值</li>
+                <li>定期检查弹性策略状态和推荐值</li>
               </ul>
             </div>
           </div>
@@ -397,7 +397,7 @@
           <div class="status-left">
             <ElTag type="success" size="large" effect="dark">
               <Activity :size="14" />
-              HPA 已启用
+              弹性策略已启用
             </ElTag>
           </div>
           <div class="status-right">
@@ -412,7 +412,7 @@
               :loading="deleting"
               @click="handleDelete"
             >
-              删除 HPA
+              删除弹性策略
             </ElButton>
           </div>
         </div>
@@ -448,7 +448,7 @@
                 <span>基础配置</span>
               </div>
 
-              <ElFormItem label="HPA 名称" prop="name">
+              <ElFormItem label="策略名称" prop="name">
                 <ElInput v-model="formData.name" disabled />
               </ElFormItem>
 
@@ -462,7 +462,7 @@
                 </ElInput>
               </ElFormItem>
 
-              <ElFormItem label="副本数范围" required>
+              <ElFormItem :label="replicaRangeLabel" required>
                 <div class="range-inputs">
                   <ElFormItem prop="minReplicas" style="margin-bottom: 0">
                     <ElInputNumber v-model="formData.minReplicas" :min="1" :max="99" />
@@ -651,7 +651,7 @@
                 </span>
               </div>
               <div class="info-item">
-                <span class="info-label">副本数范围</span>
+                <span class="info-label">{{ replicaRangeLabel }}</span>
                 <span class="info-value">
                   {{ hpaDetail.minReplicas || 1 }} - {{ hpaDetail.maxReplicas }}
                 </span>
@@ -721,7 +721,7 @@
         <div class="info-card">
           <div class="info-title">
             <Info :size="16" />
-            <span>{{ editing ? '配置建议' : 'HPA 说明' }}</span>
+            <span>{{ editing ? '配置建议' : '弹性策略说明' }}</span>
           </div>
           <div class="info-content">
             <div v-if="!editing" class="info-item">
@@ -730,7 +730,7 @@
                 <strong>工作原理</strong>
               </div>
               <p>
-                HPA 每 15
+                弹性策略每 15
                 秒采集一次指标数据，根据当前指标值与目标值的比率计算期望副本数。如果期望副本数与当前副本数不同，且超过容忍度（默认
                 10%），则触发扩缩容。
               </p>
@@ -758,8 +758,8 @@
                 <strong>注意事项</strong>
               </div>
               <ul>
-                <li v-if="!editing">HPA 会覆盖手动设置的副本数</li>
-                <li>不要同时使用 HPA 和 VPA 的 Auto 模式</li>
+                <li v-if="!editing">弹性策略会覆盖手动设置的副本数</li>
+                <li>不要同时使用弹性策略和 VPA 的 Auto 模式</li>
                 <li v-if="editing">建议设置合理的稳定窗口避免频繁扩缩容</li>
                 <li v-if="!editing">扩容较快，缩容较慢（保护服务稳定性）</li>
               </ul>
@@ -782,7 +782,7 @@
     </div>
 
     <!-- YAML 查看弹窗 🔥 修复：文件名字段引用 -->
-    <ElDialog v-model="yamlViewVisible" title="HPA YAML" width="900px">
+    <ElDialog v-model="yamlViewVisible" title="弹性策略 YAML" width="900px">
       <YamlEditorPro
         v-model="yamlViewContent"
         height="600px"
@@ -841,6 +841,8 @@
     type ProjectWorkspace
   } from '@/api'
   import YamlEditorPro from '@/components/yaml-editor-pro/index.vue'
+  import { useRoute } from 'vue-router'
+  import { isDemoApplicationContext } from '@/views/workspace/application-demo/create/demoNavigation'
 
   defineOptions({ name: 'HPAManagement' })
 
@@ -854,6 +856,16 @@
 
   const props = defineProps<Props>()
   const emit = defineEmits<{ success: [] }>()
+
+  const route = useRoute()
+  const replicaRangeLabel = computed(() =>
+    isDemoApplicationContext(route) ? '实例数范围' : '副本数范围'
+  )
+  const replicaRangeTooltip = computed(() =>
+    isDemoApplicationContext(route)
+      ? '弹性策略自动扩缩容的实例数范围。最小值至少为 1，最大值不超过 100'
+      : '弹性策略自动扩缩容的副本数范围。最小值至少为 1，最大值不超过 100'
+  )
 
   // 表单数据结构
   interface HPAFormData {
@@ -920,7 +932,7 @@
   })
 
   const formRules: FormRules = {
-    name: [{ required: true, message: '请输入 HPA 名称', trigger: 'blur' }],
+    name: [{ required: true, message: '请输入策略名称', trigger: 'blur' }],
     minReplicas: [
       { required: true, message: '请输入最小副本数', trigger: 'blur' },
       { type: 'number', min: 1, message: '最小副本数不能小于 1', trigger: 'blur' }
@@ -1335,13 +1347,13 @@
           versionId: props.version.id,
           hpaYamlStr: yamlStr
         })
-        ElMessage.success('✅ HPA 创建成功')
+        ElMessage.success('✅ 弹性策略创建成功')
       } else {
         await updateHPAApi({
           versionId: props.version.id,
           hpaYamlStr: yamlStr
         })
-        ElMessage.success('✅ HPA 更新成功')
+        ElMessage.success('✅ 弹性策略更新成功')
       }
 
       editing.value = false
@@ -1357,7 +1369,7 @@
   // 删除
   const handleDelete = async () => {
     try {
-      await ElMessageBox.confirm('确定要删除 HPA 配置吗？删除后将停止自动扩缩容。', '删除确认', {
+      await ElMessageBox.confirm('确定要删除弹性策略配置吗？删除后将停止自动扩缩容。', '删除确认', {
         confirmButtonText: '确定删除',
         cancelButtonText: '取消',
         type: 'warning',
@@ -1370,7 +1382,7 @@
 
       deleting.value = true
       await deleteHPAApi({ versionId: props.version.id })
-      ElMessage.success('✅ HPA 删除成功')
+      ElMessage.success('✅ 弹性策略删除成功')
       hpaDetail.value = null
       emit('success')
     } catch (error: any) {
