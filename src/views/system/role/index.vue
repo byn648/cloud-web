@@ -17,11 +17,11 @@
       <form class="search-grid" @submit.prevent="handleSearch">
         <label class="field">
           <span>角色名称</span>
-          <input v-model.trim="searchForm.name" :disabled="loading" placeholder="请输入角色名称" />
+          <input id="role-name" v-model.trim="searchForm.name" :disabled="loading" placeholder="请输入角色名称" />
         </label>
         <label class="field">
           <span>角色编码</span>
-          <input v-model.trim="searchForm.code" :disabled="loading" placeholder="例如：admin" />
+          <input id="role-code" v-model.trim="searchForm.code" :disabled="loading" placeholder="例如：admin" />
         </label>
         <div class="actions">
           <button type="submit" :disabled="loading">搜索</button>
@@ -119,15 +119,15 @@
         <h3>{{ dialog.mode === "add" ? "新增角色" : "编辑角色" }}</h3>
         <label class="dialog-field">
           <span>角色名称</span>
-          <input v-model.trim="dialog.form.name" maxlength="50" placeholder="请输入角色名称" />
+          <input id="role-form-name" v-model.trim="dialog.form.name" maxlength="50" placeholder="请输入角色名称" />
         </label>
         <label class="dialog-field">
           <span>角色编码</span>
-          <input v-model.trim="dialog.form.code" maxlength="50" placeholder="请输入角色编码" />
+          <input id="role-form-code" v-model.trim="dialog.form.code" maxlength="50" placeholder="请输入角色编码" />
         </label>
         <label class="dialog-field">
           <span>备注</span>
-          <textarea v-model.trim="dialog.form.remark" rows="4" maxlength="200" placeholder="请输入备注（选填）" />
+          <textarea id="role-form-remark" v-model.trim="dialog.form.remark" rows="4" maxlength="200" placeholder="请输入备注（选填）" />
         </label>
         <div class="dialog-actions">
           <button class="secondary-btn" :disabled="dialog.submitting" @click="closeDialog">取消</button>

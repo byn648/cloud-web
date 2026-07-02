@@ -17,8 +17,8 @@
             :key="item.label"
             class="menu-group"
           >
-            <div 
-              class="menu-row" 
+            <div
+              class="menu-row"
               :class="{ active: item.label === activeMenu }"
               @click="toggleMenu(item.label)"
             >
@@ -69,9 +69,9 @@
               </option>
             </select>
           </div>
-          
+
           <button class="icon-btn" title="通知"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
-          
+
           <div
             ref="avatarDropdownRef"
             class="avatar-dropdown"
@@ -93,7 +93,7 @@
         </div>
       </header>
 
-      <nav class="md3-tabs" v-if="tabs.length > 0">
+      <nav class="md3-tabs" v-if="tabs.length > 0 && !inGreenDetail">
         <div
           v-for="tab in tabs"
           :key="tab"
@@ -104,6 +104,21 @@
           {{ tab }}
         </div>
       </nav>
+
+      <!-- 绿色计算详情页返回按钮 -->
+      <div class="green-detail-nav" v-if="inGreenDetail">
+        <button class="back-btn" @click="backToGreenOverview">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          返回集群概览
+        </button>
+        <span class="green-detail-title">
+          {{ greenDetailType === 'forecast' ? '预测分析' : '性能管控' }}
+          <span class="detail-node-name" v-if="currentGreenNodeName"> - {{ currentGreenNodeName }}</span>
+        </span>
+      </div>
 
       <div class="content-scroll-area">
         <ClusterListPage v-if="showClusterListPage" @open-console="openClusterConsole" @open-add="openClusterAdd" />
@@ -133,12 +148,17 @@
         <component :is="workloadCreateView" v-else-if="workloadCreateView" />
         <ApplicationManagementPage v-else-if="showApplicationPage" />
         <ApplicationDemoCenterPage v-else-if="showApplicationDemoPage" />
+        <ForecastPage v-else-if="showForecastPage" />
+        <PerformancePage v-else-if="showPerformancePage" />
+        <GreenIndexPage v-else-if="showGreenOverviewPage" @open-detail="handleOpenGreenDetail" />
+        <ForecastPage v-else-if="showGreenForecastPage" :key="'forecast-' + greenDetailType" @switch-tab="(tab) => greenDetailType = tab" />
+        <PerformancePage v-else-if="showGreenPerformancePage" :key="'performance-' + greenDetailType" @switch-tab="(tab) => greenDetailType = tab" />
 
         <template v-else>
           <section class="hero-center-stage">
             <div class="hero-avatar">管</div>
             <h1 class="welcome-title">欢迎回来，{{ dashboard?.welcomeName ?? '超级管理员' }}</h1>
-            
+
             <div class="mega-search-bar">
               <svg class="mega-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
               <input type="text" placeholder="搜索集群、Pod、设备或用户..." />
@@ -200,6 +220,9 @@ import ProjectManagementPage from "../../project/management/index.vue";
 import ProjectResourcePage from "../../project/resource/index.vue";
 import ProjectWorkspacePage from "../../project/workspace/index.vue";
 import EnergyAnomalyPage from "../../ops/energy-anomaly/index.vue";
+import ForecastPage from "../../forecast/index.vue";
+import PerformancePage from "../../performance/index.vue";
+import GreenIndexPage from "../../green/index.vue";
 import UserManagementPage from "../../system/user/index.vue";
 import RoleManagementPage from "../../system/role/index.vue";
 import PermissionManagementPage from "../../system/permission/index.vue";
@@ -251,7 +274,10 @@ const MENU_PERMISSION_MAP: Record<string, MenuPermissionRequirement> = {
   "系统管理::用户管理": { paths: ["/system/user"] },
   "系统管理::角色管理": { paths: ["/system/role"] },
   "系统管理::权限管理": { paths: ["/system/api", "/system/permission"] },
-  "系统管理::菜单管理": { paths: ["/system/menu"] }
+  "系统管理::菜单管理": { paths: ["/system/menu"] },
+  "绿色计算::集群概览": { paths: ["/green"] },
+  "绿色计算::预测分析": { paths: ["/green/forecast"] },
+  "绿色计算::性能管控": { paths: ["/green/performance"] }
 };
 
 function buildMenuPermissionKey(menuLabel: string, subMenuLabel: string): string {
@@ -275,59 +301,65 @@ const avatarDropdownRef = ref<HTMLElement | null>(null);
 
 // --- 完美复现截图中各种莫兰迪彩色底色的 SVG 图标配置 ---
 const menuItems = ref<MenuGroup[]>([
-  { 
-    label: "仪表盘", 
+  {
+    label: "仪表盘",
     iconBg: "#a8c7fa", // 截图中的浅蓝色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#041e49" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
-    children: ["平台介绍", "分析页", "集群监控", "告警仪表", "资源仪表"] 
+    children: ["平台介绍", "分析页", "集群监控", "告警仪表", "资源仪表"]
   },
-  { 
-    label: "集群管理", 
+  {
+    label: "集群管理",
     iconBg: "#9bd6b6", // 截图中的浅绿色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#003820" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>`,
-    children: ["集群管理", "节点管理", "集群资源", "站点监控"] 
+    children: ["集群管理", "节点管理", "集群资源", "站点监控"]
   },
-  { 
-    label: "镜像仓库", 
+  {
+    label: "镜像仓库",
     iconBg: "#7fcfff", // 明蓝色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#003554" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`,
-    children: ["仓库管理"] 
+    children: ["仓库管理"]
   },
-  { 
-    label: "设备中心", 
+  {
+    label: "设备中心",
     iconBg: "#e0c6f8", // 截图中的浅紫色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#311155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`,
-    children: ["设备管理", "设备监控"] 
+    children: ["设备管理", "设备监控"]
   },
-  { 
-    label: "项目中心", 
+  {
+    label: "项目中心",
     iconBg: "#f3b7d6", // 截图中的粉色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#5c0029" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`,
-    children: ["项目管理", "资源池", "工作空间", "审计中心"] 
+    children: ["项目管理", "资源池", "工作空间", "审计中心"]
   },
-  { 
-    label: "业务中心", 
+  {
+    label: "业务中心",
     iconBg: "#fdbfd7", // 玫瑰色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#5c0029" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
     children: ["应用中心", "配置管理"]
   },
-  { 
-    label: "审计报表", 
+  {
+    label: "审计报表",
     iconBg: "#f8cba6", // 截图中的浅橙色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#522a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
-    children: ["登录日志", "日志审计", "账单中心"] 
+    children: ["登录日志", "日志审计", "账单中心"]
   },
-  { 
-    label: "异常检测", 
+  {
+    label: "绿色计算",
+    iconBg: "#86efac", // 绿色
+    svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#14532d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12M12 12C12 6 6 6 6 2M12 12C12 6 18 6 18 2M12 22C17 22 22 17 22 12C22 7 17 2 12 2C7 2 2 7 2 12C2 17 7 22 12 22Z"></path></svg>`,
+    children: ["集群概览"]
+  },
+  {
+    label: "异常检测",
     iconBg: "#f6c489", // 桃色
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#522a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
-    children: ["算电概览", "算力异常检测"] 
+    children: ["算电概览", "算力异常检测"]
   },
-  { 
-    label: "系统管理", 
+  {
+    label: "系统管理",
     iconBg: "#d3e3fd", // 浅灰蓝
     svgIcon: `<svg viewBox="0 0 24 24" fill="none" stroke="#041e49" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`,
-    children: ["用户管理", "角色管理", "权限管理", "菜单管理"] 
+    children: ["用户管理", "角色管理", "权限管理", "菜单管理"]
   }
 ]);
 
@@ -381,8 +413,17 @@ const expandedMenus = ref<Record<string, boolean>>({
 
 const tabs = computed(() => {
   const current = visibleMenuItems.value.find((item) => item.label === activeMenu.value);
-  return current?.children ?? [];
+  if (!current) return [];
+  // 绿色计算菜单只显示"集群概览"作为入口
+  if (activeMenu.value === "绿色计算") {
+    return ["集群概览"];
+  }
+  return current.children;
 });
+
+// 绿色计算详情页状态（从集群概览点击卡片后进入）
+const inGreenDetail = ref(false);
+const greenDetailType = ref<'forecast' | 'performance'>('forecast');
 
 const showClusterListPage = computed(
   () =>
@@ -414,6 +455,22 @@ const showEnergyOverviewPage = computed(
 const showEnergyAnomalyPage = computed(
   () => activeMenu.value === "异常检测" && activeSubMenu.value === "算力异常检测"
 );
+const showForecastPage = computed(
+  () => activeMenu.value === "绿色计算" && activeSubMenu.value === "预测分析" && !inGreenDetail.value
+);
+const showPerformancePage = computed(
+  () => activeMenu.value === "绿色计算" && activeSubMenu.value === "性能管控" && !inGreenDetail.value
+);
+const showGreenOverviewPage = computed(
+  () => activeMenu.value === "绿色计算" && activeSubMenu.value === "集群概览" && !inGreenDetail.value
+);
+const showGreenForecastPage = computed(
+  () => activeMenu.value === "绿色计算" && inGreenDetail.value && greenDetailType.value === 'forecast'
+);
+const showGreenPerformancePage = computed(
+  () => activeMenu.value === "绿色计算" && inGreenDetail.value && greenDetailType.value === 'performance'
+);
+const currentGreenNodeName = ref('');
 const showUserManagementPage = computed(
   () => activeMenu.value === "系统管理" && activeSubMenu.value === "用户管理"
 );
@@ -541,6 +598,24 @@ function navigateByMenu(menuLabel: string, subMenuLabel: string): void {
     }
     return;
   }
+
+  if (menuLabel === "绿色计算" && subMenuLabel === "预测分析") {
+    activeSubMenu.value = "预测分析";
+    inGreenDetail.value = true;
+    greenDetailType.value = 'forecast';
+    return;
+  }
+  if (menuLabel === "绿色计算" && subMenuLabel === "性能管控") {
+    activeSubMenu.value = "性能管控";
+    inGreenDetail.value = true;
+    greenDetailType.value = 'performance';
+    return;
+  }
+  if (menuLabel === "绿色计算" && subMenuLabel === "集群概览") {
+    activeSubMenu.value = "集群概览";
+    return;
+  }
+
   if (
     route.path === "/project/management" ||
     route.path === "/project/resource" ||
@@ -570,9 +645,10 @@ function syncMenuByRoute(path: string): void {
     path !== "/system/permission" &&
     path !== "/system/menu" &&
     path !== "/workspace/application" &&
-    path !== "/workspace/application-demo" &&
+    !path.startsWith("/workspace/application-demo") &&
     path !== "/workspace/application/create" &&
-    !path.startsWith("/workspace/workload/create/")
+    !path.startsWith("/workspace/workload/create/") &&
+    !path.startsWith("/green")
   ) {
     return;
   }
@@ -607,6 +683,23 @@ function syncMenuByRoute(path: string): void {
       activeSubMenu.value = "用户管理";
     }
     expandedMenus.value = { "系统管理": true };
+    return;
+  }
+
+  if (path.startsWith("/green/")) {
+    activeMenu.value = "绿色计算";
+    if (path === "/green/forecast") {
+      activeSubMenu.value = "预测分析";
+    } else {
+      activeSubMenu.value = "性能管控";
+    }
+    expandedMenus.value = { "绿色计算": true };
+    return;
+  }
+  if (path === "/green") {
+    activeMenu.value = "绿色计算";
+    activeSubMenu.value = "集群概览";
+    expandedMenus.value = { "绿色计算": true };
     return;
   }
 
@@ -686,6 +779,26 @@ function backToClusterList(): void {
   activeMenu.value = "集群管理";
   activeSubMenu.value = "集群管理";
   expandedMenus.value = { "集群管理": true };
+}
+
+function backToGreenOverview(): void {
+  inGreenDetail.value = false;
+  activeSubMenu.value = "集群概览";
+}
+
+function handleOpenGreenDetail(node: any, type: 'forecast' | 'performance') {
+  router.replace({
+    query: {
+      ...route.query,
+      nodeUuid: node.uuid,
+      nodeName: node.name,
+      clusterUuid: node.clusterUuid,
+      detailType: type,
+    }
+  });
+  greenDetailType.value = type;
+  currentGreenNodeName.value = node.name;
+  inGreenDetail.value = true;
 }
 
 function handleClusterCreated(): void {

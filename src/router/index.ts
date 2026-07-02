@@ -19,7 +19,10 @@ const PERMISSION_GUARD_PATHS = new Set<string>([
   "/workspace/application",
   "/workspace/application/create",
   "/workspace/workload/pod",
-  "/workspace/pod-manager"
+  "/workspace/pod-manager",
+  "/green",
+  "/green/forecast",
+  "/green/performance"
 ]);
 
 function isWorkspaceApplicationRoute(path: string): boolean {
@@ -38,7 +41,10 @@ function resolvePermissionCheckPath(path: string): string {
 
 const PERMISSION_ROUTE_ALIASES: Record<string, string[]> = {
   "/system/permission": ["/system/permission", "/system/api"],
-  "/system/api": ["/system/api", "/system/permission"]
+  "/system/api": ["/system/api", "/system/permission"],
+  "/green": ["/green", "/green/forecast", "/green/performance"],
+  "/green/forecast": ["/green/forecast", "/green/performance", "/green"],
+  "/green/performance": ["/green/performance", "/green/forecast", "/green"]
 };
 
 const router = createRouter({
@@ -165,6 +171,21 @@ const router = createRouter({
     {
       path: "/cluster/plugin-management",
       redirect: HOME_PATH
+    },
+    {
+      path: "/green",
+      name: "GreenIndex",
+      component: () => import("../views/green/index.vue")
+    },
+    {
+      path: "/green/forecast",
+      name: "GreenForecast",
+      component: () => import("../views/forecast/index.vue")
+    },
+    {
+      path: "/green/performance",
+      name: "GreenPerformance",
+      component: () => import("../views/performance/index.vue")
     },
     {
       path: "/:pathMatch(.*)*",

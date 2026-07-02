@@ -3,27 +3,27 @@
     <form class="search-grid" @submit.prevent="emit('search')">
       <label class="field">
         <span>用户名</span>
-        <input v-model.trim="form.username" :disabled="loading" placeholder="例如 super_admin" />
+        <input id="user-username" v-model.trim="form.username" :disabled="loading" placeholder="例如 super_admin" />
       </label>
       <label class="field">
         <span>昵称</span>
-        <input v-model.trim="form.nickname" :disabled="loading" placeholder="请输入昵称" />
+        <input id="user-nickname" v-model.trim="form.nickname" :disabled="loading" placeholder="请输入昵称" />
       </label>
       <label class="field">
         <span>手机号</span>
-        <input v-model.trim="form.phone" :disabled="loading" placeholder="请输入手机号" />
+        <input id="user-phone" v-model.trim="form.phone" :disabled="loading" placeholder="请输入手机号" />
       </label>
       <label class="field">
         <span>邮箱</span>
-        <input v-model.trim="form.email" :disabled="loading" placeholder="请输入邮箱" />
+        <input id="user-email" v-model.trim="form.email" :disabled="loading" placeholder="请输入邮箱" />
       </label>
       <label class="field">
         <span>工号</span>
-        <input v-model.trim="form.workNumber" :disabled="loading" placeholder="请输入工号" />
+        <input id="user-worknumber" v-model.trim="form.workNumber" :disabled="loading" placeholder="请输入工号" />
       </label>
       <label class="field">
         <span>状态</span>
-        <select v-model="form.status" :disabled="loading">
+        <select id="user-status" v-model="form.status" :disabled="loading">
           <option value="">全部</option>
           <option value="1">启用</option>
           <option value="0">禁用</option>

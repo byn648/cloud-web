@@ -43,11 +43,11 @@
           <form class="search-grid" @submit.prevent="handleSearch">
             <label class="field">
               <span>菜单名称</span>
-              <input v-model.trim="searchForm.name" :disabled="loading || !selectedPlatformId" placeholder="按路由名称搜索" />
+              <input id="menu-name" v-model.trim="searchForm.name" :disabled="loading || !selectedPlatformId" placeholder="按路由名称搜索" />
             </label>
             <label class="field">
               <span>菜单标题</span>
-              <input v-model.trim="searchForm.title" :disabled="loading || !selectedPlatformId" placeholder="按展示标题搜索" />
+              <input id="menu-title" v-model.trim="searchForm.title" :disabled="loading || !selectedPlatformId" placeholder="按展示标题搜索" />
             </label>
             <div class="actions">
               <button type="submit" :disabled="loading || !selectedPlatformId">搜索</button>
@@ -157,7 +157,7 @@
         <div class="dialog-grid">
           <label class="dialog-field">
             <span>父级菜单</span>
-            <select v-model.number="dialog.form.parentId">
+            <select id="menu-form-parent" v-model.number="dialog.form.parentId">
               <option :value="0">顶级菜单</option>
               <option v-for="item in parentOptions" :key="item.id" :value="item.id">
                 {{ `${"　".repeat(item.depth)}${item.title}` }}
@@ -166,7 +166,7 @@
           </label>
           <label class="dialog-field">
             <span>菜单类型</span>
-            <select v-model.number="dialog.form.menuType">
+            <select id="menu-form-type" v-model.number="dialog.form.menuType">
               <option :value="1">目录</option>
               <option :value="2">菜单</option>
               <option :value="3">按钮</option>
@@ -174,23 +174,24 @@
           </label>
           <label class="dialog-field">
             <span>菜单标题</span>
-            <input v-model.trim="dialog.form.title" maxlength="50" placeholder="请输入菜单标题" />
+            <input id="menu-form-title" v-model.trim="dialog.form.title" maxlength="50" placeholder="请输入菜单标题" />
           </label>
           <label class="dialog-field">
             <span>路由名称</span>
-            <input v-model.trim="dialog.form.name" maxlength="50" placeholder="请输入路由名称" />
+            <input id="menu-form-name" v-model.trim="dialog.form.name" maxlength="50" placeholder="请输入路由名称" />
           </label>
           <label v-if="dialog.form.menuType !== 3" class="dialog-field">
             <span>路由地址</span>
-            <input v-model.trim="dialog.form.path" maxlength="120" placeholder="例如：/system/menu 或 menu" />
+            <input id="menu-form-path" v-model.trim="dialog.form.path" maxlength="120" placeholder="例如：/system/menu 或 menu" />
           </label>
           <label v-if="dialog.form.menuType !== 3" class="dialog-field">
             <span>组件路径</span>
-            <input v-model.trim="dialog.form.component" maxlength="180" placeholder="例如：/system/menu" />
+            <input id="menu-form-component" v-model.trim="dialog.form.component" maxlength="180" placeholder="例如：/system/menu" />
           </label>
           <label class="dialog-field">
             <span>权限标识</span>
             <input
+              id="menu-form-label"
               v-model.trim="dialog.form.label"
               maxlength="60"
               :placeholder="dialog.form.menuType === 3 ? '例如：menu:add' : '例如：SystemMenu'"
@@ -198,15 +199,15 @@
           </label>
           <label class="dialog-field">
             <span>排序</span>
-            <input v-model.number="dialog.form.sort" type="number" min="0" />
+            <input id="menu-form-sort" v-model.number="dialog.form.sort" type="number" min="0" />
           </label>
           <label v-if="dialog.form.menuType === 3" class="dialog-field">
             <span>按钮名称</span>
-            <input v-model.trim="dialog.form.authName" maxlength="50" placeholder="例如：新增、删除" />
+            <input id="menu-form-authname" v-model.trim="dialog.form.authName" maxlength="50" placeholder="例如：新增、删除" />
           </label>
           <label v-if="dialog.form.menuType === 3" class="dialog-field">
             <span>按钮标识</span>
-            <input v-model.trim="dialog.form.authLabel" maxlength="60" placeholder="例如：add、delete" />
+            <input id="menu-form-authlabel" v-model.trim="dialog.form.authLabel" maxlength="60" placeholder="例如：add、delete" />
           </label>
           <label class="dialog-field inline-switch">
             <input v-model="dialog.form.status" type="checkbox" />

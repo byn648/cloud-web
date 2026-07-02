@@ -43,31 +43,32 @@
         <div class="dialog-grid">
           <label class="dialog-field">
             <span>用户名 *</span>
-            <input v-model.trim="createDialog.form.username" maxlength="64" placeholder="例如：alice" />
+            <input id="user-create-username" v-model.trim="createDialog.form.username" maxlength="64" placeholder="例如：alice" />
           </label>
           <label class="dialog-field">
             <span>昵称 *</span>
-            <input v-model.trim="createDialog.form.nickname" maxlength="64" placeholder="请输入昵称" />
+            <input id="user-create-nickname" v-model.trim="createDialog.form.nickname" maxlength="64" placeholder="请输入昵称" />
           </label>
           <label class="dialog-field">
             <span>邮箱 *</span>
-            <input v-model.trim="createDialog.form.email" maxlength="100" placeholder="例如：a@corp.com" />
+            <input id="user-create-email" v-model.trim="createDialog.form.email" maxlength="100" placeholder="例如：a@corp.com" />
           </label>
           <label class="dialog-field">
             <span>手机号 *</span>
-            <input v-model.trim="createDialog.form.phone" maxlength="20" placeholder="请输入手机号" />
+            <input id="user-create-phone" v-model.trim="createDialog.form.phone" maxlength="20" placeholder="请输入手机号" />
           </label>
           <label class="dialog-field">
             <span>工号 *</span>
-            <input v-model.trim="createDialog.form.workNumber" maxlength="64" placeholder="请输入工号" />
+            <input id="user-create-worknumber" v-model.trim="createDialog.form.workNumber" maxlength="64" placeholder="请输入工号" />
           </label>
           <label class="dialog-field">
             <span>部门ID</span>
-            <input v-model.number="createDialog.form.deptId" type="number" min="0" placeholder="默认 0（可选）" />
+            <input id="user-create-deptid" v-model.number="createDialog.form.deptId" type="number" min="0" placeholder="默认 0（可选）" />
           </label>
           <label class="dialog-field">
             <span>初始密码（可选）</span>
             <input
+              id="user-create-password"
               v-model.trim="createDialog.form.password"
               type="password"
               maxlength="60"
@@ -78,6 +79,7 @@
           <label class="dialog-field">
             <span>确认密码</span>
             <input
+              id="user-create-confirm"
               v-model.trim="createDialog.form.confirmPassword"
               type="password"
               maxlength="60"
@@ -101,38 +103,38 @@
         <div class="dialog-grid">
           <label class="dialog-field">
             <span>用户名</span>
-            <input :value="editDialog.form.username" disabled />
+            <input id="user-edit-username" :value="editDialog.form.username" disabled />
           </label>
           <label class="dialog-field">
             <span>昵称 *</span>
-            <input v-model.trim="editDialog.form.nickname" maxlength="64" placeholder="请输入昵称" />
+            <input id="user-edit-nickname" v-model.trim="editDialog.form.nickname" maxlength="64" placeholder="请输入昵称" />
           </label>
           <label class="dialog-field">
             <span>邮箱 *</span>
-            <input v-model.trim="editDialog.form.email" maxlength="100" placeholder="请输入邮箱" />
+            <input id="user-edit-email" v-model.trim="editDialog.form.email" maxlength="100" placeholder="请输入邮箱" />
           </label>
           <label class="dialog-field">
             <span>手机号 *</span>
-            <input v-model.trim="editDialog.form.phone" maxlength="20" placeholder="请输入手机号" />
+            <input id="user-edit-phone" v-model.trim="editDialog.form.phone" maxlength="20" placeholder="请输入手机号" />
           </label>
           <label class="dialog-field">
             <span>工号 *</span>
-            <input v-model.trim="editDialog.form.workNumber" maxlength="64" placeholder="请输入工号" />
+            <input id="user-edit-worknumber" v-model.trim="editDialog.form.workNumber" maxlength="64" placeholder="请输入工号" />
           </label>
           <label class="dialog-field">
             <span>部门ID *</span>
-            <input v-model.number="editDialog.form.deptId" type="number" min="1" placeholder="请输入部门ID" />
+            <input id="user-edit-deptid" v-model.number="editDialog.form.deptId" type="number" min="1" placeholder="请输入部门ID" />
           </label>
           <label class="dialog-field">
             <span>状态</span>
-            <select v-model.number="editDialog.form.status">
+            <select id="user-edit-status" v-model.number="editDialog.form.status">
               <option :value="1">启用</option>
               <option :value="0">禁用</option>
             </select>
           </label>
           <label class="dialog-field">
             <span>需重置密码</span>
-            <select v-model.number="editDialog.form.isNeedResetPwd">
+            <select id="user-edit-resetpwd" v-model.number="editDialog.form.isNeedResetPwd">
               <option :value="0">否</option>
               <option :value="1">是</option>
             </select>
